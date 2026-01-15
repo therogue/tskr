@@ -39,7 +39,7 @@ function App() {
         <h1>Deskbot</h1>
       </header>
       <main className="main">
-        <TaskList tasks={tasks} />
+        <TaskList tasks={tasks} onTasksUpdate={handleTasksUpdate} />
         <ChatInterface onTasksUpdate={handleTasksUpdate} />
       </main>
     </div>

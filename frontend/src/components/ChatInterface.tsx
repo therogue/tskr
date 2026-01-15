@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface Task {
   id: string
@@ -22,6 +22,20 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Load saved conversation on mount
+  useEffect(() => {
+    fetch(`${API_URL}/conversation`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setMessages(data)
+        }
+      })
+      .catch(() => {
+        // Ignore errors loading conversation
+      })
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
