@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface Task {
   id: string
@@ -27,6 +27,7 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Load saved conversation on mount
   useEffect(() => {
@@ -41,6 +42,11 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
         // Ignore errors loading conversation
       })
   }, [])
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -82,6 +88,7 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
           </div>
         ))}
         {loading && <div className="message assistant">Thinking...</div>}
+        <div ref={messagesEndRef} />
       </div>
       <form className="chat-input-form" onSubmit={handleSubmit}>
         <input

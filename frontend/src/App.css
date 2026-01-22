@@ -11,9 +11,10 @@ body {
 }
 
 .app {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .header {
@@ -33,6 +34,7 @@ body {
   display: flex;
   gap: 1px;
   background: #2a3f5f;
+  min-height: 0;
 }
 
 /* Task List Panel */

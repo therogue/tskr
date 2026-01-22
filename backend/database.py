@@ -17,81 +17,17 @@ def get_db():
         conn.close()
 
 def init_db():
-    """Initialize database tables with migration support."""
-    with get_db() as conn:
-        # Check if tasks table exists and has new columns
-        cursor = conn.execute("PRAGMA table_info(tasks)")
-        columns = {row["name"] for row in cursor.fetchall()}
+    """Initialize database by running Alembic migrations."""
+    import subprocess
+    import os
 
-        # Add recurrence_rule column if missing
-        if "recurrence_rule" not in columns and "task_key" in columns:
-            conn.execute("ALTER TABLE tasks ADD COLUMN recurrence_rule TEXT")
-            conn.commit()
-
-        if "task_key" not in columns:
-            # Need to migrate or create fresh
-            if "id" in columns:
-                # Migrate existing table
-                conn.execute("ALTER TABLE tasks ADD COLUMN task_key TEXT")
-                conn.execute("ALTER TABLE tasks ADD COLUMN category TEXT DEFAULT 'T'")
-                conn.execute("ALTER TABLE tasks ADD COLUMN task_number INTEGER DEFAULT 0")
-                conn.execute("ALTER TABLE tasks ADD COLUMN scheduled_date TEXT")
-                # Update existing tasks with T-## keys
-                rows = conn.execute("SELECT id FROM tasks ORDER BY created_at").fetchall()
-                for i, row in enumerate(rows, start=1):
-                    conn.execute(
-                        "UPDATE tasks SET task_key = ?, category = 'T', task_number = ? WHERE id = ?",
-                        (f"T-{i:02d}", i, row["id"])
-                    )
-            else:
-                # Create fresh table
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS tasks (
-                        id TEXT PRIMARY KEY,
-                        task_key TEXT NOT NULL,
-                        category TEXT NOT NULL,
-                        task_number INTEGER NOT NULL,
-                        title TEXT NOT NULL,
-                        completed INTEGER DEFAULT 0,
-                        scheduled_date TEXT,
-                        recurrence_rule TEXT,
-                        created_at TEXT NOT NULL
-                    )
-                """)
-        else:
-            # Table already has new schema
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id TEXT PRIMARY KEY,
-                    task_key TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    task_number INTEGER NOT NULL,
-                    title TEXT NOT NULL,
-                    completed INTEGER DEFAULT 0,
-                    scheduled_date TEXT,
-                    recurrence_rule TEXT,
-                    created_at TEXT NOT NULL
-                )
-            """)
-
-        # Category sequences for tracking next number per category
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS category_sequences (
-                category TEXT PRIMARY KEY,
-                next_number INTEGER DEFAULT 1
-            )
-        """)
-
-        # Conversations table
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS conversations (
-                id INTEGER PRIMARY KEY,
-                messages TEXT DEFAULT '[]',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-        """)
-        conn.commit()
+    # Run alembic upgrade from the backend directory
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    subprocess.run(
+        ["alembic", "upgrade", "head"],
+        cwd=backend_dir,
+        check=True
+    )
 
 def get_next_task_number(category: str, scheduled_date: Optional[str] = None) -> int:
     """
@@ -102,10 +38,11 @@ def get_next_task_number(category: str, scheduled_date: Optional[str] = None) ->
     with get_db() as conn:
         if category in ("D", "M"):
             # Count existing tasks for this category on this date
+            # Use substr to match date portion only (scheduled_date may include time)
             if scheduled_date:
                 count = conn.execute(
-                    "SELECT COUNT(*) FROM tasks WHERE category = ? AND scheduled_date = ?",
-                    (category, scheduled_date)
+                    "SELECT COUNT(*) FROM tasks WHERE category = ? AND substr(scheduled_date, 1, 10) = ?",
+                    (category, scheduled_date[:10])
                 ).fetchone()[0]
                 return count + 1
             else:
@@ -134,8 +71,9 @@ def get_next_task_number(category: str, scheduled_date: Optional[str] = None) ->
 
 def _row_to_task(row) -> dict:
     """Convert a database row to a task dict."""
+    keys = row.keys()
     # Treat empty string as None for recurrence_rule
-    recurrence = row["recurrence_rule"] if "recurrence_rule" in row.keys() else None
+    recurrence = row["recurrence_rule"] if "recurrence_rule" in keys else None
     if recurrence == "":
         recurrence = None
     return {
@@ -289,9 +227,13 @@ def create_task_db(
     scheduled_date: Optional[str] = None,
     recurrence_rule: Optional[str] = None
 ) -> dict:
-    """Create a task with auto-generated task_key."""
+    """Create a task with auto-generated task_key.
+    scheduled_date can be YYYY-MM-DD or YYYY-MM-DDTHH:MM format.
+    """
     created_at = datetime.now().isoformat()
-    task_number = get_next_task_number(category, scheduled_date)
+    # Extract date portion for task numbering (D/M categories use per-date numbering)
+    date_for_numbering = scheduled_date[:10] if scheduled_date else None
+    task_number = get_next_task_number(category, date_for_numbering)
     task_key = f"{category}-{task_number:02d}"
 
     with get_db() as conn:
@@ -327,17 +269,21 @@ def update_task_db(
         if not row:
             return None
 
+        keys = row.keys()
         new_title = title if title is not None else row["title"]
         new_scheduled = scheduled_date if scheduled_date is not None else row["scheduled_date"]
-        current_rule = row["recurrence_rule"] if "recurrence_rule" in row.keys() else None
+        current_rule = row["recurrence_rule"] if "recurrence_rule" in keys else None
         new_rule = recurrence_rule if recurrence_rule is not None else current_rule
 
         # Handle recurring task completion
         # If completing a recurring task, advance to next occurrence instead
+        # Extract date portion for recurrence calculation, preserve time if present
         if completed and new_rule and new_scheduled:
-            next_date = calculate_next_occurrence(new_rule, new_scheduled)
+            date_portion = new_scheduled[:10]  # YYYY-MM-DD
+            time_portion = new_scheduled[10:] if len(new_scheduled) > 10 else ""  # THH:MM if present
+            next_date = calculate_next_occurrence(new_rule, date_portion)
             if next_date:
-                new_scheduled = next_date
+                new_scheduled = next_date + time_portion  # Preserve time
                 new_completed = 0  # Reset to incomplete for next occurrence
             else:
                 new_completed = 1  # Invalid rule, just mark complete

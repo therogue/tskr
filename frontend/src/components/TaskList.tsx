@@ -40,17 +40,29 @@ function TaskList({ tasks, onTasksUpdate }: TaskListProps) {
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
   // Group tasks by category
-  // Daily tasks: only show tasks scheduled for today
+  // Daily tasks: only show tasks scheduled for today (prefix match for datetime support)
   const meetings = tasks.filter((t) => t.category === 'M')
-  const daily = tasks.filter((t) => t.category === 'D' && t.scheduled_date === todayStr)
+  const daily = tasks.filter((t) => t.category === 'D' && t.scheduled_date?.startsWith(todayStr))
   const other = tasks.filter((t) => t.category !== 'M' && t.category !== 'D')
 
-  function formatDate(dateStr: string | null): string {
+  function formatDateTime(dateStr: string | null): string {
     if (!dateStr) return ''
-    // Parse YYYY-MM-DD manually to avoid timezone issues
-    const [year, month, day] = dateStr.split('-').map(Number)
-    const date = new Date(year, month - 1, day) // month is 0-indexed
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    // Handle both YYYY-MM-DD and YYYY-MM-DDTHH:MM formats
+    const hasTime = dateStr.includes('T')
+    const datePart = dateStr.slice(0, 10)
+    const [year, month, day] = datePart.split('-').map(Number)
+    const date = new Date(year, month - 1, day)
+    const dateFormatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+    if (hasTime) {
+      const timePart = dateStr.slice(11, 16) // HH:MM
+      const [hours, minutes] = timePart.split(':').map(Number)
+      const ampm = hours >= 12 ? 'pm' : 'am'
+      const hours12 = hours % 12 || 12
+      const timeFormatted = minutes === 0 ? `${hours12}${ampm}` : `${hours12}:${String(minutes).padStart(2, '0')}${ampm}`
+      return `${dateFormatted} ${timeFormatted}`
+    }
+    return dateFormatted
   }
 
   function renderTaskItem(task: Task) {
@@ -68,7 +80,7 @@ function TaskList({ tasks, onTasksUpdate }: TaskListProps) {
           <span className="task-recurring" title={`Repeats: ${task.recurrence_rule}`}>&#x21bb;</span>
         )}
         {task.scheduled_date && (
-          <span className="task-date">{formatDate(task.scheduled_date)}</span>
+          <span className="task-date">{formatDateTime(task.scheduled_date)}</span>
         )}
       </li>
     )

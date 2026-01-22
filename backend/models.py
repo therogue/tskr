@@ -9,20 +9,20 @@ class Task(BaseModel):
     task_number: int
     title: str
     completed: bool = False
-    scheduled_date: Optional[str] = None
+    scheduled_date: Optional[str] = None  # ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM
     recurrence_rule: Optional[str] = None
     created_at: datetime
 
 class TaskCreate(BaseModel):
     title: str
     category: str = "T"
-    scheduled_date: Optional[str] = None
+    scheduled_date: Optional[str] = None  # ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM
     recurrence_rule: Optional[str] = None
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     completed: Optional[bool] = None
-    scheduled_date: Optional[str] = None
+    scheduled_date: Optional[str] = None  # ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM
     recurrence_rule: Optional[str] = None
 
 class Message(BaseModel):

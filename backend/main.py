@@ -45,7 +45,7 @@ client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 
 # System prompt for task decomposition
 # Categories: T=regular tasks, D=daily tasks, M=meetings, or user-defined
-# Scheduling: tasks can have a scheduled_date (ISO format YYYY-MM-DD)
+# Scheduling: tasks can have scheduled_date in ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM)
 # Recurrence: tasks can have a recurrence_rule for repeating
 SYSTEM_PROMPT = """You are a task management assistant. Parse the user's request and respond with JSON only.
 
@@ -53,14 +53,14 @@ Supported operations:
 - create: Create a new task
 - complete: Mark a task as completed
 - delete: Delete a task
-- schedule: Schedule an existing task for a specific date
+- schedule: Schedule an existing task for a specific date/time
 - set_recurrence: Set or change a task's recurrence pattern
 - remove_recurrence: Stop a task from repeating
 
 Task categories:
 - T: Regular tasks (default)
 - D: Daily tasks (date-specific, often recurring)
-- M: Meetings (date-specific)
+- M: Meetings (date-specific, usually have a time)
 - Or any custom category the user specifies (e.g., "P" for projects)
 
 Recurrence patterns (for recurrence_rule field):
@@ -71,15 +71,19 @@ Recurrence patterns (for recurrence_rule field):
 - "monthly:3:WED" - Nth weekday of month (e.g., 3rd Wednesday)
 - "yearly:01-15" - Same date each year (MM-DD format)
 
-For scheduling, convert relative dates like "today", "tomorrow", "next Monday" to ISO format (YYYY-MM-DD).
-Today's date is: {today}
+For scheduling:
+- Date only: use YYYY-MM-DD format (e.g., "2025-01-21")
+- Date with time: use YYYY-MM-DDTHH:MM format (e.g., "2025-01-21T15:00")
+- Convert relative dates like "today", "tomorrow", "next Monday" appropriately
+- Convert times to 24-hour format, e.g., "3pm" -> "15:00", "9:30am" -> "09:30"
+- Today's date is: {today}
 
 Respond with this exact JSON format:
 {{
     "operation": "create" | "complete" | "delete" | "schedule" | "set_recurrence" | "remove_recurrence",
     "title": "task title here",
     "category": "T" | "D" | "M" | custom,
-    "scheduled_date": "YYYY-MM-DD" or null,
+    "scheduled_date": "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" or null,
     "recurrence_rule": "pattern" or null,
     "message": "friendly response to user"
 }}
@@ -194,17 +198,21 @@ async def chat(chat_request: ChatRequest) -> dict:
     operation = parsed.get("operation", "none")
     title = parsed.get("title", "")
     task_key = parsed.get("task_key", "")
-    category = parsed.get("category", "T").upper()
+    category = (parsed.get("category") or "T").upper()
     scheduled_date = parsed.get("scheduled_date")
     recurrence_rule = parsed.get("recurrence_rule")
     message = parsed.get("message", "Done")
 
     # Execute operation
     if operation == "create" and title:
+        # Auto-set scheduled_date to today for D and M categories if not provided
+        effective_date = scheduled_date
+        if not effective_date and category in ("D", "M"):
+            effective_date = today
         create_task(TaskCreate(
             title=title,
             category=category,
-            scheduled_date=scheduled_date,
+            scheduled_date=effective_date,
             recurrence_rule=recurrence_rule
         ))
     elif operation == "complete":
