@@ -75,6 +75,43 @@ body {
   flex: 1;
 }
 
+.task-key {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b8cce;
+  min-width: 3rem;
+}
+
+.task-date {
+  font-size: 0.75rem;
+  color: #607080;
+}
+
+.task-recurring {
+  font-size: 0.85rem;
+  color: #6b8cce;
+  cursor: help;
+}
+
+.task-section {
+  margin-bottom: 1rem;
+}
+
+.task-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6b8cce;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #2a3f5f;
+}
+
+.task-item.completed .task-key {
+  color: #4a5a6a;
+}
+
 .empty-state {
   color: #607080;
   font-style: italic;
