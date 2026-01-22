@@ -10,7 +10,7 @@ interface Task {
   task_number: number
   title: string
   completed: boolean
-  scheduled_date: string | null
+  scheduled_date: string | null  // YYYY-MM-DD or YYYY-MM-DDTHH:MM
   recurrence_rule: string | null
   created_at: string
 }

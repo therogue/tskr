@@ -20,8 +20,9 @@ Tasks use Jira-style identifiers: `CATEGORY-##` (e.g., `M-01`, `T-15`)
 
 ## Scheduling
 
-- Tasks can be **unscheduled** (no date) or **scheduled** for a specific day
-- User schedules tasks via chat ("schedule this for tomorrow")
+- Tasks can be **unscheduled** (no date/time) or **scheduled** for a specific date/time
+- Format: `YYYY-MM-DD` (date only) or `YYYY-MM-DDTHH:MM` (date and time)
+- User schedules tasks via chat ("schedule this for tomorrow at 3pm")
 - For D and M tasks, scheduling is required (they are date-bound by nature)
 
 ## Display (Phase 1 - Option A)
@@ -31,10 +32,10 @@ Tasks use Jira-style identifiers: `CATEGORY-##` (e.g., `M-01`, `T-15`)
 - Identifiers displayed inline (e.g., "M-01: Team standup")
 - Scheduled dates shown but no date navigation yet
 
-## Database Schema Changes
+## Database Schema
 
 ```sql
--- Updated tasks table
+-- Tasks table
 tasks (
     id TEXT PRIMARY KEY,          -- UUID for internal use
     task_key TEXT NOT NULL,       -- Display identifier (e.g., "M-01")
@@ -42,7 +43,8 @@ tasks (
     task_number INTEGER NOT NULL, -- The ## part
     title TEXT NOT NULL,
     completed INTEGER DEFAULT 0,
-    scheduled_date TEXT,          -- ISO date string, nullable
+    scheduled_date TEXT,          -- YYYY-MM-DD or YYYY-MM-DDTHH:MM, nullable
+    recurrence_rule TEXT,         -- Recurrence pattern (see recurring-tasks.md)
     created_at TEXT NOT NULL
 )
 
@@ -56,5 +58,4 @@ category_sequences (
 ## Future Considerations
 
 - Date navigation (week view, day picker)
-- Time-based scheduling (not just date)
-- Recurring tasks
+- Task completion history tracking

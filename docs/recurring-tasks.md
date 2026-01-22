@@ -37,10 +37,13 @@ Tasks without a `recurrence_rule` behave as before - completion marks them done 
 
 ## Database Schema
 
-Added to `tasks` table:
+`tasks` table fields:
 ```sql
+scheduled_date TEXT   -- YYYY-MM-DD or YYYY-MM-DDTHH:MM format
 recurrence_rule TEXT  -- NULL for non-recurring tasks
 ```
+
+The `scheduled_date` field supports both date-only and datetime formats. When a recurring task has a time component, the time is preserved when advancing to the next occurrence.
 
 ## Chat Interface
 
