@@ -2,8 +2,13 @@ import { useState, useEffect } from 'react'
 
 interface Task {
   id: string
+  task_key: string
+  category: string
+  task_number: number
   title: string
   completed: boolean
+  scheduled_date: string | null
+  recurrence_rule: string | null
   created_at: string
 }
 

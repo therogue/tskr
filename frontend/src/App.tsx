@@ -5,8 +5,13 @@ import ChatInterface from './components/ChatInterface'
 // Assumption: Task matches backend Task model
 interface Task {
   id: string
+  task_key: string
+  category: string
+  task_number: number
   title: string
   completed: boolean
+  scheduled_date: string | null
+  recurrence_rule: string | null
   created_at: string
 }
 
