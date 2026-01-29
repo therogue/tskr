@@ -8,7 +8,7 @@ import json
 import anthropic
 from dotenv import load_dotenv
 
-from models import TaskCreate, TaskUpdate, ChatRequest
+from models import TaskUpdate, ChatRequest
 from database import (
     init_db,
     get_all_tasks,
@@ -104,18 +104,6 @@ def get_tasks() -> list[dict]:
     return get_all_tasks()
 
 
-@app.post("/tasks")
-def create_task(task_data: TaskCreate) -> dict:
-    task_id = str(uuid.uuid4())
-    return create_task_db(
-        task_id,
-        task_data.title,
-        task_data.category,
-        task_data.scheduled_date,
-        task_data.recurrence_rule
-    )
-
-
 @app.patch("/tasks/{task_id}")
 def update_task(task_id: str, task_data: TaskUpdate) -> dict:
     result = update_task_db(
@@ -152,6 +140,63 @@ def find_task(title: str = None, task_key: str = None) -> dict | None:
     return None
 
 
+def strip_markdown_(text: str) -> str:
+    """Remove markdown code block wrapper if present."""
+    text = text.strip()
+    if not text.startswith("```"):
+        return text
+    lines = text.split("\n")[1:]  # Skip first line (```json)
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines)
+
+
+def execute_operation(parsed: dict, today: str) -> str:
+    """
+    Execute a task operation based on parsed Claude response.
+    Returns the message to display to the user.
+    """
+    operation = parsed.get("operation", "none")
+    title = parsed.get("title", "")
+    task_key = parsed.get("task_key", "")
+    category = (parsed.get("category") or "T").upper()
+    scheduled_date = parsed.get("scheduled_date")
+    recurrence_rule = parsed.get("recurrence_rule")
+    message = parsed.get("message", "Done")
+
+    # Create doesn't need task lookup
+    if operation == "create" and title:
+        effective_date = scheduled_date or (today if category in ("D", "M") else None)
+        create_task_db(str(uuid.uuid4()), title, category, effective_date, recurrence_rule)
+        return message
+
+    # All other operations require finding the task first
+    if operation in ("complete", "delete", "schedule", "set_recurrence", "remove_recurrence"):
+        task = find_task(title, task_key)
+        if not task:
+            return f"Could not find task matching '{task_key or title}'"
+
+        if operation == "complete":
+            update_task_db(task["id"], completed=True)
+        elif operation == "delete":
+            delete_task_db(task["id"])
+        elif operation == "schedule":
+            if scheduled_date:
+                update_task_db(task["id"], scheduled_date=scheduled_date)
+            else:
+                return "No date provided for scheduling"
+        elif operation == "set_recurrence":
+            if recurrence_rule:
+                new_scheduled = scheduled_date or task.get("scheduled_date") or today
+                update_task_db(task["id"], scheduled_date=new_scheduled, recurrence_rule=recurrence_rule)
+            else:
+                return "No recurrence pattern provided"
+        elif operation == "remove_recurrence":
+            update_task_db(task["id"], recurrence_rule="")
+
+    return message
+
+
 @app.post("/chat")
 async def chat(chat_request: ChatRequest) -> dict:
     """Process user message through Claude and execute task operations."""
@@ -180,78 +225,12 @@ async def chat(chat_request: ChatRequest) -> dict:
     ai_text = response.content[0].text
     print(f"Claude response: {ai_text}")
 
-    # Strip markdown code block if present
-    ai_text = ai_text.strip()
-    if ai_text.startswith("```"):
-        lines = ai_text.split("\n")
-        lines = lines[1:]  # Remove first line (```json)
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]  # Remove last line (```)
-        ai_text = "\n".join(lines)
-
-    # Parse JSON response from Claude
     try:
-        parsed = json.loads(ai_text)
+        parsed = json.loads(strip_markdown_(ai_text))
     except json.JSONDecodeError:
         return {"response": "Failed to parse AI response", "tasks": get_all_tasks()}
 
-    operation = parsed.get("operation", "none")
-    title = parsed.get("title", "")
-    task_key = parsed.get("task_key", "")
-    category = (parsed.get("category") or "T").upper()
-    scheduled_date = parsed.get("scheduled_date")
-    recurrence_rule = parsed.get("recurrence_rule")
-    message = parsed.get("message", "Done")
-
-    # Execute operation
-    if operation == "create" and title:
-        # Auto-set scheduled_date to today for D and M categories if not provided
-        effective_date = scheduled_date
-        if not effective_date and category in ("D", "M"):
-            effective_date = today
-        create_task(TaskCreate(
-            title=title,
-            category=category,
-            scheduled_date=effective_date,
-            recurrence_rule=recurrence_rule
-        ))
-    elif operation == "complete":
-        task = find_task(title, task_key)
-        if task:
-            update_task_db(task["id"], completed=True)
-        else:
-            message = f"Could not find task matching '{task_key or title}'"
-    elif operation == "delete":
-        task = find_task(title, task_key)
-        if task:
-            delete_task_db(task["id"])
-        else:
-            message = f"Could not find task matching '{task_key or title}'"
-    elif operation == "schedule":
-        task = find_task(title, task_key)
-        if task and scheduled_date:
-            update_task_db(task["id"], scheduled_date=scheduled_date)
-        elif not task:
-            message = f"Could not find task matching '{task_key or title}'"
-        else:
-            message = "No date provided for scheduling"
-    elif operation == "set_recurrence":
-        task = find_task(title, task_key)
-        if task and recurrence_rule:
-            # If no scheduled_date, set it to today
-            new_scheduled = scheduled_date or task.get("scheduled_date") or today
-            update_task_db(task["id"], scheduled_date=new_scheduled, recurrence_rule=recurrence_rule)
-        elif not task:
-            message = f"Could not find task matching '{task_key or title}'"
-        else:
-            message = "No recurrence pattern provided"
-    elif operation == "remove_recurrence":
-        task = find_task(title, task_key)
-        if task:
-            # Set recurrence_rule to empty string to remove it
-            update_task_db(task["id"], recurrence_rule="")
-        else:
-            message = f"Could not find task matching '{task_key or title}'"
+    message = execute_operation(parsed, today)
 
     # Save conversation with assistant response
     conversation = [{"role": m.role, "content": m.content} for m in chat_request.messages]

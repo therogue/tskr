@@ -5,3 +5,6 @@ anthropic
 pydantic
 alembic
 sqlalchemy
+pytest
+pytest-asyncio
+httpx
