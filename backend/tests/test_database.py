@@ -259,26 +259,48 @@ class TestRecurrenceCalculation:
         assert calculate_next_occurrence("daily", "invalid-date") is None
 
 
-class TestRecurringTaskCompletion:
-    """Tests for recurring task completion behavior."""
+class TestTemplateAndInstanceBehavior:
+    """Tests for template and instance behavior."""
 
-    def test_complete_recurring_task_advances_date(self, test_db):
-        """Completing a recurring task advances to next occurrence instead of marking complete."""
-        task = create_task_db("id-1", "Daily standup", "D", "2025-01-20", "daily")
+    def test_create_template(self, test_db):
+        """Templates have is_template=True and R- prefix key."""
+        task = create_task_db("id-1", "Daily standup", "D", "2025-01-20", "daily", is_template=True)
+
+        assert task["is_template"] is True
+        assert task["task_key"] == "R-D-01"
+        assert task["recurrence_rule"] == "daily"
+
+    def test_template_numbering_separate(self, test_db):
+        """Templates have separate numbering from instances."""
+        # Create instance first
+        inst = create_task_db("id-1", "Instance task", "D", "2025-01-20")
+        # Create template
+        tpl = create_task_db("id-2", "Template task", "D", "2025-01-20", "daily", is_template=True)
+        # Create another instance
+        inst2 = create_task_db("id-3", "Instance task 2", "D", "2025-01-20")
+
+        assert inst["task_key"] == "D-01"
+        assert tpl["task_key"] == "R-D-01"
+        assert inst2["task_key"] == "D-02"
+
+    def test_instance_completes_normally(self, test_db):
+        """Instances complete normally without date advancement."""
+        # Create instance (not template) even with recurrence_rule (for display)
+        task = create_task_db("id-1", "Task instance", "D", "2025-01-20", "daily", is_template=False)
         updated = update_task_db("id-1", completed=True)
 
-        # Should advance date and remain incomplete
-        assert updated["completed"] is False
-        assert updated["scheduled_date"] == "2025-01-21"
-        assert updated["recurrence_rule"] == "daily"
+        # Should mark complete (no advancement)
+        assert updated["completed"] is True
+        assert updated["scheduled_date"] == "2025-01-20"
 
-    def test_complete_recurring_task_preserves_time(self, test_db):
-        """Completing a recurring task with time preserves the time component."""
-        task = create_task_db("id-1", "Team sync", "M", "2025-01-20T10:00", "weekdays")
-        updated = update_task_db("id-1", completed=True)
+    def test_create_instance_with_parent(self, test_db):
+        """Instances can link to parent template."""
+        tpl = create_task_db("tpl-1", "Daily standup", "D", "2025-01-20", "daily", is_template=True)
+        inst = create_task_db("inst-1", "Daily standup", "D", "2025-01-21", "daily",
+                              is_template=False, parent_task_id="tpl-1")
 
-        # Should advance to Tuesday, keep time
-        assert updated["scheduled_date"] == "2025-01-21T10:00"
+        assert inst["parent_task_id"] == "tpl-1"
+        assert inst["is_template"] is False
 
     def test_complete_non_recurring_task(self, test_db):
         """Completing a non-recurring task marks it complete normally."""

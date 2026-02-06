@@ -12,6 +12,7 @@ from models import TaskUpdate, ChatRequest
 from database import (
     init_db,
     get_all_tasks,
+    get_tasks_for_date,
     create_task_db,
     update_task_db,
     delete_task_db,
@@ -104,6 +105,13 @@ def get_tasks() -> list[dict]:
     return get_all_tasks()
 
 
+@app.get("/tasks/for-date")
+def get_tasks_for_date_endpoint(date: str) -> list[dict]:
+    """Get tasks for a specific date (day view)."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    return get_tasks_for_date(date, today)
+
+
 @app.patch("/tasks/{task_id}")
 def update_task(task_id: str, task_data: TaskUpdate) -> dict:
     result = update_task_db(
@@ -155,6 +163,9 @@ def execute_operation(parsed: dict, today: str) -> str:
     """
     Execute a task operation based on parsed Claude response.
     Returns the message to display to the user.
+
+    Tasks with recurrence_rule are created as templates (is_template=True).
+    Templates generate instances for specific dates via get_tasks_for_date().
     """
     operation = parsed.get("operation", "none")
     title = parsed.get("title", "")
@@ -167,7 +178,16 @@ def execute_operation(parsed: dict, today: str) -> str:
     # Create doesn't need task lookup
     if operation == "create" and title:
         effective_date = scheduled_date or (today if category in ("D", "M") else None)
-        create_task_db(str(uuid.uuid4()), title, category, effective_date, recurrence_rule)
+        # Tasks with recurrence are created as templates
+        is_template = bool(recurrence_rule)
+        create_task_db(
+            str(uuid.uuid4()),
+            title,
+            category,
+            effective_date,
+            recurrence_rule,
+            is_template=is_template
+        )
         return message
 
     # All other operations require finding the task first
@@ -186,6 +206,8 @@ def execute_operation(parsed: dict, today: str) -> str:
             else:
                 return "No date provided for scheduling"
         elif operation == "set_recurrence":
+            # Convert existing task to a template
+            # Note: This is a simplified approach - ideally we'd create a new template
             if recurrence_rule:
                 new_scheduled = scheduled_date or task.get("scheduled_date") or today
                 update_task_db(task["id"], scheduled_date=new_scheduled, recurrence_rule=recurrence_rule)
