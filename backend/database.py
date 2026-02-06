@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from contextlib import contextmanager
 
-DATABASE_PATH = "deskbot.db"
+DATABASE_PATH = "tskr.db"
 
 @contextmanager
 def get_db():

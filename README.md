@@ -1,4 +1,4 @@
-# Deskbot
+# Tskr
 
 Local task manager with AI-powered task management.
 
