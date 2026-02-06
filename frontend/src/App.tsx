@@ -55,7 +55,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Deskbot</h1>
+        <h1>Tskr</h1>
       </header>
       <main className="main">
         <TaskList

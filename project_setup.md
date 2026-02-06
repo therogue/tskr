@@ -1,4 +1,4 @@
-Create the UI scaffolding for a local task manager app called "Deskbot"
+Create the UI scaffolding for a local task manager app called "Tskr"
 
 Stack:
 - Frontend: Vite + React + TypeScript

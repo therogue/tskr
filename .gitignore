@@ -153,4 +153,4 @@ temp/
 .claude/rawlogs/
 .claude/conversations/
 
-backend/deskbot.db
+backend/tskr.db
