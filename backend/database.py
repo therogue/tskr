@@ -29,19 +29,43 @@ def init_db():
         check=True
     )
 
-def get_next_task_number(category: str, scheduled_date: Optional[str] = None) -> int:
+def get_next_task_number(category: str, scheduled_date: Optional[str] = None, is_template: bool = False) -> int:
     """
     Get next task number for a category.
-    For D and M categories, number is per-date.
-    For others, number continues indefinitely.
+    For D and M instance categories, number is per-date.
+    For templates and other categories, number continues indefinitely via category_sequences.
+    Templates use "R-{category}" as the sequence key.
     """
     with get_db() as conn:
+        # Templates always use category_sequences with R- prefix
+        if is_template:
+            seq_key = f"R-{category}"
+            row = conn.execute(
+                "SELECT next_number FROM category_sequences WHERE category = ?",
+                (seq_key,)
+            ).fetchone()
+            if row:
+                next_num = row["next_number"]
+                conn.execute(
+                    "UPDATE category_sequences SET next_number = ? WHERE category = ?",
+                    (next_num + 1, seq_key)
+                )
+            else:
+                next_num = 1
+                conn.execute(
+                    "INSERT INTO category_sequences (category, next_number) VALUES (?, 2)",
+                    (seq_key,)
+                )
+            conn.commit()
+            return next_num
+
+        # Instance tasks: D and M use per-date numbering
         if category in ("D", "M"):
-            # Count existing tasks for this category on this date
+            # Count existing non-template tasks for this category on this date
             # Use substr to match date portion only (scheduled_date may include time)
             if scheduled_date:
                 count = conn.execute(
-                    "SELECT COUNT(*) FROM tasks WHERE category = ? AND substr(scheduled_date, 1, 10) = ?",
+                    "SELECT COUNT(*) FROM tasks WHERE category = ? AND substr(scheduled_date, 1, 10) = ? AND (is_template = 0 OR is_template IS NULL)",
                     (category, scheduled_date[:10])
                 ).fetchone()[0]
                 return count + 1
@@ -49,7 +73,7 @@ def get_next_task_number(category: str, scheduled_date: Optional[str] = None) ->
                 # D/M without date - use 1 (edge case)
                 return 1
         else:
-            # Get from sequence table
+            # Other categories use category_sequences
             row = conn.execute(
                 "SELECT next_number FROM category_sequences WHERE category = ?",
                 (category,)
@@ -85,7 +109,9 @@ def _row_to_task(row) -> dict:
         "completed": bool(row["completed"]),
         "scheduled_date": row["scheduled_date"],
         "recurrence_rule": recurrence,
-        "created_at": row["created_at"]
+        "created_at": row["created_at"],
+        "is_template": bool(row["is_template"]) if "is_template" in keys else False,
+        "parent_task_id": row["parent_task_id"] if "parent_task_id" in keys else None,
     }
 
 
@@ -205,6 +231,169 @@ def _find_nth_weekday(current: datetime, nth: int, weekday: int) -> str:
 
     return target.strftime("%Y-%m-%d")
 
+
+def does_pattern_match_date(rule: str, target_date: str) -> bool:
+    """
+    Check if a recurrence pattern includes a specific date.
+    target_date is in YYYY-MM-DD format.
+    Returns True if the pattern would include this date.
+    """
+    if not rule or not target_date:
+        return False
+
+    try:
+        year, month, day = map(int, target_date.split("-"))
+        target = datetime(year, month, day)
+    except (ValueError, AttributeError):
+        return False
+
+    rule = rule.lower().strip()
+
+    if rule == "daily":
+        return True
+
+    if rule == "weekdays":
+        return target.weekday() < 5  # Mon-Fri
+
+    if rule.startswith("weekly:"):
+        days_str = rule[7:].upper()
+        target_days = [DAY_MAP[d.strip()] for d in days_str.split(",") if d.strip() in DAY_MAP]
+        return target.weekday() in target_days
+
+    if rule.startswith("monthly:"):
+        parts = rule[8:].split(":")
+        if len(parts) == 1:
+            # Format: monthly:15 (day of month)
+            try:
+                target_day = int(parts[0])
+                return target.day == target_day
+            except ValueError:
+                return False
+        elif len(parts) == 2:
+            # Format: monthly:3:WED (3rd Wednesday)
+            try:
+                nth = int(parts[0])
+                target_weekday = DAY_MAP.get(parts[1].upper().strip())
+                if target_weekday is None:
+                    return False
+            except ValueError:
+                return False
+            # Check if target is the nth occurrence of target_weekday in its month
+            if target.weekday() != target_weekday:
+                return False
+            # Count which occurrence this is
+            first_of_month = datetime(target.year, target.month, 1)
+            days_until = (target_weekday - first_of_month.weekday()) % 7
+            first_occurrence = first_of_month + timedelta(days=days_until)
+            occurrence_num = ((target.day - first_occurrence.day) // 7) + 1
+            return occurrence_num == nth
+
+    if rule.startswith("yearly:"):
+        # Format: yearly:01-15 (MM-DD)
+        try:
+            mm_dd = rule[7:]
+            target_month, target_day = map(int, mm_dd.split("-"))
+            return target.month == target_month and target.day == target_day
+        except ValueError:
+            return False
+
+    return False
+
+
+def _create_instance_from_template(template: dict, target_date: str) -> dict:
+    """
+    Create a task instance from a template for a specific date.
+    Copies title, category, recurrence_rule (for display), and time portion from template.
+    """
+    import uuid
+
+    # Preserve time portion from template's scheduled_date if present
+    template_scheduled = template.get("scheduled_date") or ""
+    time_portion = template_scheduled[10:] if len(template_scheduled) > 10 else ""
+    instance_scheduled = target_date + time_portion
+
+    return create_task_db(
+        task_id=str(uuid.uuid4()),
+        title=template["title"],
+        category=template["category"],
+        scheduled_date=instance_scheduled,
+        recurrence_rule=template.get("recurrence_rule"),  # Copy for display
+        is_template=False,
+        parent_task_id=template["id"]
+    )
+
+
+def _instance_exists_for_date(template_id: str, target_date: str) -> bool:
+    """Check if an instance already exists for this template on target_date."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT id FROM tasks WHERE parent_task_id = ? AND substr(scheduled_date, 1, 10) = ?",
+            (template_id, target_date)
+        ).fetchone()
+        return row is not None
+
+
+def get_tasks_for_date(target_date: str, today: str) -> list[dict]:
+    """
+    Get tasks that should appear on a specific date's day view.
+    target_date: The date being viewed (YYYY-MM-DD)
+    today: Today's date (YYYY-MM-DD) for determining defaults
+
+    For today: creates instances from matching templates if they don't exist.
+    For past/future: shows projections for templates without instances.
+
+    Returns tasks with additional 'projected' field for recurring projections.
+    """
+    all_tasks = get_all_tasks()
+    result = []
+    is_today = target_date == today
+
+    for task in all_tasks:
+        is_template = task.get("is_template", False)
+        scheduled = task.get("scheduled_date")
+        scheduled_date_only = scheduled[:10] if scheduled else None
+        recurrence = task.get("recurrence_rule")
+
+        # Skip templates from direct inclusion - they generate instances/projections
+        if is_template:
+            # Check if pattern matches target_date
+            if recurrence and does_pattern_match_date(recurrence, target_date):
+                if is_today:
+                    # Create instance if it doesn't exist
+                    if not _instance_exists_for_date(task["id"], target_date):
+                        instance = _create_instance_from_template(task, target_date)
+                        result.append({**instance, "projected": False})
+                    # If instance exists, it will be picked up in the non-template loop below
+                else:
+                    # Past or future: show as projection if no instance exists
+                    if not _instance_exists_for_date(task["id"], target_date):
+                        # Create a projection based on template
+                        projection = {**task, "projected": True}
+                        # Adjust scheduled_date to target_date for display
+                        time_portion = scheduled[10:] if scheduled and len(scheduled) > 10 else ""
+                        projection["scheduled_date"] = target_date + time_portion
+                        result.append(projection)
+            continue
+
+        # Non-template tasks (instances and regular tasks)
+        # Task directly scheduled for this date
+        if scheduled_date_only == target_date:
+            result.append({**task, "projected": False})
+            continue
+
+        # For today only: include tasks with no scheduled_date
+        if is_today and not scheduled:
+            result.append({**task, "projected": False})
+            continue
+
+        # For today only: include tasks with past scheduled_date (overdue)
+        if is_today and scheduled_date_only and scheduled_date_only < today:
+            result.append({**task, "projected": False})
+            continue
+
+    return result
+
+
 def get_all_tasks() -> list[dict]:
     with get_db() as conn:
         rows = conn.execute("""
@@ -225,23 +414,33 @@ def create_task_db(
     title: str,
     category: str = "T",
     scheduled_date: Optional[str] = None,
-    recurrence_rule: Optional[str] = None
+    recurrence_rule: Optional[str] = None,
+    is_template: bool = False,
+    parent_task_id: Optional[str] = None
 ) -> dict:
     """Create a task with auto-generated task_key.
     scheduled_date can be YYYY-MM-DD or YYYY-MM-DDTHH:MM format.
+    If is_template=True, creates a recurring template with R- prefix key.
+    If parent_task_id is set, this is an instance created from a template.
     """
     created_at = datetime.now().isoformat()
     # Extract date portion for task numbering (D/M categories use per-date numbering)
     date_for_numbering = scheduled_date[:10] if scheduled_date else None
-    task_number = get_next_task_number(category, date_for_numbering)
-    task_key = f"{category}-{task_number:02d}"
+    task_number = get_next_task_number(category, date_for_numbering, is_template)
+
+    # Templates get R- prefix: R-D-01, R-M-01, etc.
+    # Instances get normal keys: D-01, M-01, etc.
+    if is_template:
+        task_key = f"R-{category}-{task_number:02d}"
+    else:
+        task_key = f"{category}-{task_number:02d}"
 
     with get_db() as conn:
         conn.execute(
             """INSERT INTO tasks
-               (id, task_key, category, task_number, title, completed, scheduled_date, recurrence_rule, created_at)
-               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)""",
-            (task_id, task_key, category, task_number, title, scheduled_date, recurrence_rule, created_at)
+               (id, task_key, category, task_number, title, completed, scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)""",
+            (task_id, task_key, category, task_number, title, scheduled_date, recurrence_rule, created_at, int(is_template), parent_task_id)
         )
         conn.commit()
 
@@ -254,7 +453,9 @@ def create_task_db(
         "completed": False,
         "scheduled_date": scheduled_date,
         "recurrence_rule": recurrence_rule,
-        "created_at": created_at
+        "created_at": created_at,
+        "is_template": is_template,
+        "parent_task_id": parent_task_id,
     }
 
 def update_task_db(
@@ -264,6 +465,7 @@ def update_task_db(
     scheduled_date: Optional[str] = None,
     recurrence_rule: Optional[str] = None
 ) -> Optional[dict]:
+    """Update a task. Instances are completed normally (no date advancement)."""
     with get_db() as conn:
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not row:
@@ -274,21 +476,7 @@ def update_task_db(
         new_scheduled = scheduled_date if scheduled_date is not None else row["scheduled_date"]
         current_rule = row["recurrence_rule"] if "recurrence_rule" in keys else None
         new_rule = recurrence_rule if recurrence_rule is not None else current_rule
-
-        # Handle recurring task completion
-        # If completing a recurring task, advance to next occurrence instead
-        # Extract date portion for recurrence calculation, preserve time if present
-        if completed and new_rule and new_scheduled:
-            date_portion = new_scheduled[:10]  # YYYY-MM-DD
-            time_portion = new_scheduled[10:] if len(new_scheduled) > 10 else ""  # THH:MM if present
-            next_date = calculate_next_occurrence(new_rule, date_portion)
-            if next_date:
-                new_scheduled = next_date + time_portion  # Preserve time
-                new_completed = 0  # Reset to incomplete for next occurrence
-            else:
-                new_completed = 1  # Invalid rule, just mark complete
-        else:
-            new_completed = int(completed) if completed is not None else row["completed"]
+        new_completed = int(completed) if completed is not None else row["completed"]
 
         conn.execute(
             "UPDATE tasks SET title = ?, completed = ?, scheduled_date = ?, recurrence_rule = ? WHERE id = ?",
@@ -305,7 +493,9 @@ def update_task_db(
             "completed": bool(new_completed),
             "scheduled_date": new_scheduled,
             "recurrence_rule": new_rule,
-            "created_at": row["created_at"]
+            "created_at": row["created_at"],
+            "is_template": bool(row["is_template"]) if "is_template" in keys else False,
+            "parent_task_id": row["parent_task_id"] if "parent_task_id" in keys else None,
         }
 
 def delete_task_db(task_id: str) -> bool:

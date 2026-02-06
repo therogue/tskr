@@ -45,10 +45,31 @@ body {
   overflow-y: auto;
 }
 
-.task-panel h2 {
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1rem;
+}
+
+.task-panel h2 {
   font-size: 1.1rem;
   color: #a0b0c0;
+}
+
+.view-toggle {
+  padding: 0.25rem 0.5rem;
+  background: #253545;
+  color: #a0b0c0;
+  border: 1px solid #3a4f6f;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.view-toggle:hover {
+  background: #3a4f6f;
+  color: #e8e8e8;
 }
 
 .task-list {
@@ -112,6 +133,14 @@ body {
 
 .task-item.completed .task-key {
   color: #4a5a6a;
+}
+
+.task-item.projected {
+  opacity: 0.6;
+}
+
+.task-item.projected .task-title {
+  font-style: italic;
 }
 
 .empty-state {
