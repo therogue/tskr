@@ -8,7 +8,7 @@ import json
 import anthropic
 from dotenv import load_dotenv
 
-from models import TaskUpdate, ChatRequest
+from models import Task, TaskUpdate, ChatRequest
 from database import (
     init_db,
     get_all_tasks,
@@ -101,19 +101,19 @@ Only respond with valid JSON, no other text."""
 
 
 @app.get("/tasks")
-def get_tasks() -> list[dict]:
+def get_tasks() -> list[Task]:
     return get_all_tasks()
 
 
 @app.get("/tasks/for-date")
-def get_tasks_for_date_endpoint(date: str) -> list[dict]:
+def get_tasks_for_date_endpoint(date: str) -> list[Task]:
     """Get tasks for a specific date (day view)."""
     today = datetime.now().strftime("%Y-%m-%d")
     return get_tasks_for_date(date, today)
 
 
 @app.patch("/tasks/{task_id}")
-def update_task(task_id: str, task_data: TaskUpdate) -> dict:
+def update_task(task_id: str, task_data: TaskUpdate) -> Task:
     result = update_task_db(
         task_id,
         task_data.title,

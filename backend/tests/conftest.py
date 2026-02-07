@@ -21,6 +21,7 @@ def test_db(monkeypatch, tmp_path):
     """
     db_path = str(tmp_path / "test.db")
     monkeypatch.setattr(database, "DATABASE_PATH", db_path)
+    monkeypatch.setattr(database, "init_db", lambda: None)
 
     # Create tables directly (skip alembic for tests)
     conn = sqlite3.connect(db_path)
@@ -34,7 +35,9 @@ def test_db(monkeypatch, tmp_path):
             completed INTEGER DEFAULT 0,
             scheduled_date TEXT,
             recurrence_rule TEXT,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            is_template INTEGER DEFAULT 0,
+            parent_task_id TEXT
         );
 
         CREATE TABLE category_sequences (
