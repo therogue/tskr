@@ -52,11 +52,8 @@ SYSTEM_PROMPT = """You are a task management assistant. Parse the user's request
 
 Supported operations:
 - create: Create a new task
-- complete: Mark a task as completed
+- update: Update any task fields (title, category, scheduled_date, recurrence_rule, completed)
 - delete: Delete a task
-- schedule: Schedule an existing task for a specific date/time
-- set_recurrence: Set or change a task's recurrence pattern
-- remove_recurrence: Stop a task from repeating
 
 Task categories:
 - T: Regular tasks (default)
@@ -71,25 +68,34 @@ Recurrence patterns (for recurrence_rule field):
 - "monthly:15" - Same date each month (e.g., 15th)
 - "monthly:3:WED" - Nth weekday of month (e.g., 3rd Wednesday)
 - "yearly:01-15" - Same date each year (MM-DD format)
+- To remove recurrence: set recurrence_rule to empty string ""
 
-For scheduling:
+Date/time formatting:
 - Date only: use YYYY-MM-DD format (e.g., "2025-01-21")
 - Date with time: use YYYY-MM-DDTHH:MM format (e.g., "2025-01-21T15:00")
 - Convert relative dates like "today", "tomorrow", "next Monday" appropriately
 - Convert times to 24-hour format, e.g., "3pm" -> "15:00", "9:30am" -> "09:30"
 - Today's date is: {today}
 
+Common update scenarios:
+- Complete a task: set "completed": true
+- Schedule a task: set "scheduled_date": "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM"
+- Rename a task: set "title": "new title"
+- Make task recurring: set "recurrence_rule": "pattern"
+
 Respond with this exact JSON format:
 {{
-    "operation": "create" | "complete" | "delete" | "schedule" | "set_recurrence" | "remove_recurrence",
+    "operation": "create" | "update" | "delete",
     "title": "task title here",
     "category": "T" | "D" | "M" | custom,
     "scheduled_date": "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" or null,
     "recurrence_rule": "pattern" or null,
+    "completed": true | false | null,
     "message": "friendly response to user"
 }}
 
-For complete/delete/schedule/set_recurrence/remove_recurrence, you can also use "task_key" instead of "title" to identify the task (e.g., "M-01").
+For update/delete operations, you can use "task_key" instead of "title" to identify the task (e.g., "M-01").
+For update operation, include any fields to change. Only fields provided will be updated.
 
 If the request is unclear or not a task operation, respond with:
 {{
@@ -114,13 +120,9 @@ def get_tasks_for_date_endpoint(date: str) -> list[Task]:
 
 @app.patch("/tasks/{task_id}")
 def update_task(task_id: str, task_data: TaskUpdate) -> Task:
-    result = update_task_db(
-        task_id,
-        task_data.title,
-        task_data.completed,
-        task_data.scheduled_date,
-        task_data.recurrence_rule
-    )
+    # Only pass fields that were explicitly set
+    updates = task_data.model_dump(exclude_unset=True)
+    result = update_task_db(task_id, **updates)
     if not result:
         raise HTTPException(status_code=404, detail="Task not found")
     return result
@@ -190,31 +192,36 @@ def execute_operation(parsed: dict, today: str) -> str:
         )
         return message
 
-    # All other operations require finding the task first
-    if operation in ("complete", "delete", "schedule", "set_recurrence", "remove_recurrence"):
+    # Update and delete operations require finding the task first
+    if operation == "update":
         task = find_task(title, task_key)
         if not task:
             return f"Could not find task matching '{task_key or title}'"
 
-        if operation == "complete":
-            update_task_db(task.id, completed=True)
-        elif operation == "delete":
-            delete_task_db(task.id)
-        elif operation == "schedule":
-            if scheduled_date:
-                update_task_db(task.id, scheduled_date=scheduled_date)
-            else:
-                return "No date provided for scheduling"
-        elif operation == "set_recurrence":
-            # Convert existing task to a template
-            # Note: This is a simplified approach - ideally we'd create a new template
-            if recurrence_rule:
-                new_scheduled = scheduled_date or task.scheduled_date or today
-                update_task_db(task.id, scheduled_date=new_scheduled, recurrence_rule=recurrence_rule)
-            else:
-                return "No recurrence pattern provided"
-        elif operation == "remove_recurrence":
-            update_task_db(task.id, recurrence_rule="")
+        # Build updates dict from any fields provided by LLM
+        updates = {}
+        completed = parsed.get("completed")
+
+        if title and title != task.title:
+            updates["title"] = title
+        if category and category != task.category:
+            updates["category"] = category
+        if scheduled_date is not None and scheduled_date != task.scheduled_date:
+            updates["scheduled_date"] = scheduled_date
+        if recurrence_rule is not None and recurrence_rule != task.recurrence_rule:
+            updates["recurrence_rule"] = recurrence_rule
+        if completed is not None and completed != task.completed:
+            updates["completed"] = completed
+
+        # Apply updates if any
+        if updates:
+            update_task_db(task.id, **updates)
+
+    elif operation == "delete":
+        task = find_task(title, task_key)
+        if not task:
+            return f"Could not find task matching '{task_key or title}'"
+        delete_task_db(task.id)
 
     return message
 

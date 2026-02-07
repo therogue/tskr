@@ -460,45 +460,52 @@ def create_task_db(
         parent_task_id=parent_task_id,
     )
 
-def update_task_db(
-    task_id: str,
-    title: Optional[str] = None,
-    completed: Optional[bool] = None,
-    scheduled_date: Optional[str] = None,
-    recurrence_rule: Optional[str] = None
-) -> Optional[Task]:
-    """Update a task. Instances are completed normally (no date advancement)."""
+def update_task_db(task_id: str, **updates) -> Optional[Task]:
+    """
+    Update a task with any fields provided.
+    Only updates fields that differ from current values.
+
+    Args:
+        task_id: Task ID to update
+        **updates: Field names and values to update (title, completed, scheduled_date, recurrence_rule)
+    """
     with get_db() as conn:
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not row:
             return None
 
         keys = row.keys()
-        new_title = title if title is not None else row["title"]
-        new_scheduled = scheduled_date if scheduled_date is not None else row["scheduled_date"]
-        current_rule = row["recurrence_rule"] if "recurrence_rule" in keys else None
-        new_rule = recurrence_rule if recurrence_rule is not None else current_rule
-        new_completed = int(completed) if completed is not None else row["completed"]
 
-        conn.execute(
-            "UPDATE tasks SET title = ?, completed = ?, scheduled_date = ?, recurrence_rule = ? WHERE id = ?",
-            (new_title, new_completed, new_scheduled, new_rule, task_id)
-        )
-        conn.commit()
+        # Filter updates: only include fields that differ from current values
+        changes = {}
+        for field, new_value in updates.items():
+            if field not in keys:
+                continue
 
-        return Task(
-            id=task_id,
-            task_key=row["task_key"],
-            category=row["category"],
-            task_number=row["task_number"],
-            title=new_title,
-            completed=bool(new_completed),
-            scheduled_date=new_scheduled,
-            recurrence_rule=new_rule,
-            created_at=row["created_at"],
-            is_template=bool(row["is_template"]) if "is_template" in keys else False,
-            parent_task_id=row["parent_task_id"] if "parent_task_id" in keys else None,
-        )
+            current_value = row[field]
+
+            # Convert bool to int for comparison with SQLite storage
+            if isinstance(new_value, bool):
+                new_value_cmp = int(new_value)
+                current_value_cmp = current_value
+            else:
+                new_value_cmp = new_value
+                current_value_cmp = current_value
+
+            # Only include if different
+            if new_value_cmp != current_value_cmp:
+                changes[field] = int(new_value) if isinstance(new_value, bool) else new_value
+
+        # Execute UPDATE only if there are actual changes
+        if changes:
+            set_clause = ", ".join(f"{field} = ?" for field in changes.keys())
+            values = list(changes.values()) + [task_id]
+            conn.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", values)
+            conn.commit()
+
+        # Return updated task (re-fetch to get current state)
+        updated_row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        return _row_to_task(updated_row)
 
 def delete_task_db(task_id: str) -> bool:
     with get_db() as conn:
