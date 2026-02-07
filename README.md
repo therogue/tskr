@@ -27,8 +27,8 @@ Backend runs at http://localhost:8000
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Frontend runs at http://localhost:5173

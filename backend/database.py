@@ -356,7 +356,10 @@ def get_tasks_for_date(target_date: str, today: str) -> list[Task]:
 
         # Skip templates from direct inclusion - they generate instances/projections
         if task.is_template:
-            # Check if pattern matches target_date
+            # Check if pattern matches target_date and date is >= template creation date
+            template_start = task.created_at[:10]  # Extract date from ISO datetime
+            if target_date < template_start:
+                continue
             if task.recurrence_rule and does_pattern_match_date(task.recurrence_rule, target_date):
                 if is_today:
                     # Create instance if it doesn't exist
