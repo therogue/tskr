@@ -114,10 +114,20 @@ class TestTemplateInstanceBehavior:
 
     def test_get_tasks_for_date_creates_instance(self, test_db, app_client):
         """Day view for today creates instance from matching template."""
-        # Create a daily template
-        create_task_db("tpl-1", "Daily standup", "D", "2025-01-20", "daily", is_template=True)
+        # Create a daily template with created_at before the query date
+        import sqlite3
+        import database
+        conn = sqlite3.connect(database.DATABASE_PATH)
+        conn.execute("""
+            INSERT INTO tasks (id, task_key, category, task_number, title, completed,
+                               scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
+            VALUES ('tpl-1', 'R-D-01', 'D', 1, 'Daily standup', 0,
+                    '2025-01-20', 'daily', '2025-01-20T10:00:00', 1, NULL)
+        """)
+        conn.commit()
+        conn.close()
 
-        # Get tasks for 2025-01-21 (pattern matches)
+        # Get tasks for 2025-01-21 (pattern matches, after created_at)
         response = app_client.get("/tasks/for-date?date=2025-01-21")
         assert response.status_code == 200
         tasks = response.json()
