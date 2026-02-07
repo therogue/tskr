@@ -12,6 +12,7 @@ from database import (
     update_task_db,
     delete_task_db,
     get_all_tasks,
+    get_tasks_for_date,
     find_task_by_title_db,
     find_task_by_key_db,
     get_next_task_number,
@@ -308,6 +309,130 @@ class TestTemplateAndInstanceBehavior:
         updated = update_task_db("id-1", completed=True)
 
         assert updated.completed is True
+
+
+class TestTemplateStartDate:
+    """Tests for template start date (created_at) logic in get_tasks_for_date."""
+
+    def test_projection_not_shown_before_created_at(self, test_db):
+        """Template projections should not appear for dates before created_at."""
+        # Template created on 2025-02-01
+        import sqlite3
+        import database
+        conn = sqlite3.connect(database.DATABASE_PATH)
+        conn.execute("""
+            INSERT INTO tasks (id, task_key, category, task_number, title, completed,
+                               scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
+            VALUES ('tpl-1', 'R-D-01', 'D', 1, 'Daily standup', 0,
+                    '2025-02-01', 'daily', '2025-02-01T10:00:00', 1, NULL)
+        """)
+        conn.commit()
+        conn.close()
+
+        # Query for a date before created_at - should not show projection
+        tasks = get_tasks_for_date("2025-01-15", "2025-01-15")
+        assert len(tasks) == 0
+
+    def test_projection_shown_on_created_at_date(self, test_db):
+        """Template projections should appear on the created_at date."""
+        import sqlite3
+        import database
+        conn = sqlite3.connect(database.DATABASE_PATH)
+        conn.execute("""
+            INSERT INTO tasks (id, task_key, category, task_number, title, completed,
+                               scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
+            VALUES ('tpl-1', 'R-D-01', 'D', 1, 'Daily standup', 0,
+                    '2025-02-01', 'daily', '2025-02-01T10:00:00', 1, NULL)
+        """)
+        conn.commit()
+        conn.close()
+
+        # Query for the created_at date (not today, so projection)
+        tasks = get_tasks_for_date("2025-02-01", "2025-02-15")
+        assert len(tasks) == 1
+        assert tasks[0].projected is True
+
+    def test_projection_shown_after_created_at(self, test_db):
+        """Template projections should appear for dates after created_at."""
+        import sqlite3
+        import database
+        conn = sqlite3.connect(database.DATABASE_PATH)
+        conn.execute("""
+            INSERT INTO tasks (id, task_key, category, task_number, title, completed,
+                               scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
+            VALUES ('tpl-1', 'R-D-01', 'D', 1, 'Daily standup', 0,
+                    '2025-02-01', 'daily', '2025-02-01T10:00:00', 1, NULL)
+        """)
+        conn.commit()
+        conn.close()
+
+        # Query for a date after created_at (not today, so projection)
+        tasks = get_tasks_for_date("2025-02-10", "2025-02-15")
+        assert len(tasks) == 1
+        assert tasks[0].projected is True
+
+    def test_instance_not_created_before_created_at(self, test_db):
+        """Template instances should not be created for dates before created_at."""
+        import sqlite3
+        import database
+        conn = sqlite3.connect(database.DATABASE_PATH)
+        conn.execute("""
+            INSERT INTO tasks (id, task_key, category, task_number, title, completed,
+                               scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
+            VALUES ('tpl-1', 'R-D-01', 'D', 1, 'Daily standup', 0,
+                    '2025-02-01', 'daily', '2025-02-01T10:00:00', 1, NULL)
+        """)
+        conn.commit()
+        conn.close()
+
+        # Query for a date before created_at as "today" - should not create instance
+        tasks = get_tasks_for_date("2025-01-15", "2025-01-15")
+        assert len(tasks) == 0
+
+        # Verify no instance was created in DB
+        all_tasks = get_all_tasks()
+        assert len(all_tasks) == 1  # Only the template
+
+    def test_instance_created_on_created_at_date(self, test_db):
+        """Template instance should be created on the created_at date when it's today."""
+        import sqlite3
+        import database
+        conn = sqlite3.connect(database.DATABASE_PATH)
+        conn.execute("""
+            INSERT INTO tasks (id, task_key, category, task_number, title, completed,
+                               scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
+            VALUES ('tpl-1', 'R-D-01', 'D', 1, 'Daily standup', 0,
+                    '2025-02-01', 'daily', '2025-02-01T10:00:00', 1, NULL)
+        """)
+        conn.commit()
+        conn.close()
+
+        # Query for created_at date as "today" - should create instance
+        tasks = get_tasks_for_date("2025-02-01", "2025-02-01")
+        assert len(tasks) == 1
+        assert tasks[0].projected is False
+        assert tasks[0].is_template is False
+        assert tasks[0].parent_task_id == "tpl-1"
+
+    def test_instance_created_after_created_at(self, test_db):
+        """Template instance should be created for dates after created_at when it's today."""
+        import sqlite3
+        import database
+        conn = sqlite3.connect(database.DATABASE_PATH)
+        conn.execute("""
+            INSERT INTO tasks (id, task_key, category, task_number, title, completed,
+                               scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
+            VALUES ('tpl-1', 'R-D-01', 'D', 1, 'Daily standup', 0,
+                    '2025-02-01', 'daily', '2025-02-01T10:00:00', 1, NULL)
+        """)
+        conn.commit()
+        conn.close()
+
+        # Query for a date after created_at as "today" - should create instance
+        tasks = get_tasks_for_date("2025-02-10", "2025-02-10")
+        assert len(tasks) == 1
+        assert tasks[0].projected is False
+        assert tasks[0].is_template is False
 
 
 class TestConversation:
