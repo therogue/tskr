@@ -139,7 +139,7 @@ def get_conversation_endpoint() -> list[dict]:
     return get_conversation()
 
 
-def find_task(title: str = None, task_key: str = None) -> dict | None:
+def find_task(title: str = None, task_key: str = None) -> Task | None:
     """Find a task by title or task_key."""
     if task_key:
         return find_task_by_key_db(task_key)
@@ -197,24 +197,24 @@ def execute_operation(parsed: dict, today: str) -> str:
             return f"Could not find task matching '{task_key or title}'"
 
         if operation == "complete":
-            update_task_db(task["id"], completed=True)
+            update_task_db(task.id, completed=True)
         elif operation == "delete":
-            delete_task_db(task["id"])
+            delete_task_db(task.id)
         elif operation == "schedule":
             if scheduled_date:
-                update_task_db(task["id"], scheduled_date=scheduled_date)
+                update_task_db(task.id, scheduled_date=scheduled_date)
             else:
                 return "No date provided for scheduling"
         elif operation == "set_recurrence":
             # Convert existing task to a template
             # Note: This is a simplified approach - ideally we'd create a new template
             if recurrence_rule:
-                new_scheduled = scheduled_date or task.get("scheduled_date") or today
-                update_task_db(task["id"], scheduled_date=new_scheduled, recurrence_rule=recurrence_rule)
+                new_scheduled = scheduled_date or task.scheduled_date or today
+                update_task_db(task.id, scheduled_date=new_scheduled, recurrence_rule=recurrence_rule)
             else:
                 return "No recurrence pattern provided"
         elif operation == "remove_recurrence":
-            update_task_db(task["id"], recurrence_rule="")
+            update_task_db(task.id, recurrence_rule="")
 
     return message
 
