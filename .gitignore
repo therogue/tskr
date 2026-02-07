@@ -150,7 +150,8 @@ public
 tmp/
 temp/
 
-.claude/rawlogs/
-.claude/conversations/
+.claude/*
 
 backend/tskr.db
+
+frontend/package-lock.json
