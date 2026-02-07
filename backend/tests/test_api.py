@@ -108,9 +108,9 @@ class TestTemplateInstanceBehavior:
         """Templates have R- prefix in task_key."""
         task = create_task_db("id-1", "Daily standup", "D", "2025-01-20", "daily", is_template=True)
 
-        assert task["is_template"] is True
-        assert task["task_key"].startswith("R-")
-        assert task["task_key"] == "R-D-01"
+        assert task.is_template is True
+        assert task.task_key.startswith("R-")
+        assert task.task_key == "R-D-01"
 
     def test_get_tasks_for_date_creates_instance(self, test_db, app_client):
         """Day view for today creates instance from matching template."""

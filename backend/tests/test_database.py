@@ -28,27 +28,27 @@ class TestTaskCRUD:
         """Create a simple task with default category."""
         task = create_task_db("id-1", "Buy groceries", "T")
 
-        assert task["id"] == "id-1"
-        assert task["title"] == "Buy groceries"
-        assert task["category"] == "T"
-        assert task["task_key"] == "T-01"
-        assert task["completed"] is False
-        assert task["scheduled_date"] is None
-        assert task["recurrence_rule"] is None
+        assert task.id == "id-1"
+        assert task.title == "Buy groceries"
+        assert task.category == "T"
+        assert task.task_key == "T-01"
+        assert task.completed is False
+        assert task.scheduled_date is None
+        assert task.recurrence_rule is None
 
     def test_create_task_with_schedule(self, test_db):
         """Create a task with scheduled date."""
         task = create_task_db("id-1", "Doctor appointment", "M", "2025-02-15T10:00")
 
-        assert task["scheduled_date"] == "2025-02-15T10:00"
-        assert task["category"] == "M"
+        assert task.scheduled_date == "2025-02-15T10:00"
+        assert task.category == "M"
 
     def test_create_task_with_recurrence(self, test_db):
         """Create a recurring task."""
         task = create_task_db("id-1", "Morning standup", "D", "2025-01-20", "weekdays")
 
-        assert task["recurrence_rule"] == "weekdays"
-        assert task["scheduled_date"] == "2025-01-20"
+        assert task.recurrence_rule == "weekdays"
+        assert task.scheduled_date == "2025-01-20"
 
     def test_get_all_tasks_empty(self, test_db):
         """Get tasks from empty database."""
@@ -69,15 +69,15 @@ class TestTaskCRUD:
         create_task_db("id-1", "Old title", "T")
         updated = update_task_db("id-1", title="New title")
 
-        assert updated["title"] == "New title"
-        assert updated["completed"] is False
+        assert updated.title == "New title"
+        assert updated.completed is False
 
     def test_update_task_completed(self, test_db):
         """Mark task as completed."""
         create_task_db("id-1", "Do something", "T")
         updated = update_task_db("id-1", completed=True)
 
-        assert updated["completed"] is True
+        assert updated.completed is True
 
     def test_update_task_not_found(self, test_db):
         """Update nonexistent task returns None."""
@@ -103,7 +103,7 @@ class TestTaskCRUD:
         # Partial match
         task = find_task_by_title_db("groceries")
         assert task is not None
-        assert task["id"] == "id-1"
+        assert task.id == "id-1"
 
         # Case insensitive
         task = find_task_by_title_db("GROCERIES")
@@ -119,14 +119,14 @@ class TestTaskCRUD:
         create_task_db("id-2", "Second task", "T")
 
         task = find_task_by_key_db("T-01")
-        assert task["title"] == "First task"
+        assert task.title == "First task"
 
         task = find_task_by_key_db("T-02")
-        assert task["title"] == "Second task"
+        assert task.title == "Second task"
 
         # Case insensitive
         task = find_task_by_key_db("t-01")
-        assert task["title"] == "First task"
+        assert task.title == "First task"
 
         # Not found
         task = find_task_by_key_db("T-99")
@@ -142,9 +142,9 @@ class TestTaskNumbering:
         t2 = create_task_db("id-2", "Task 2", "T")
         t3 = create_task_db("id-3", "Task 3", "T")
 
-        assert t1["task_key"] == "T-01"
-        assert t2["task_key"] == "T-02"
-        assert t3["task_key"] == "T-03"
+        assert t1.task_key == "T-01"
+        assert t2.task_key == "T-02"
+        assert t3.task_key == "T-03"
 
     def test_per_date_numbering_meetings(self, test_db):
         """Meetings (M category) get per-date numbering."""
@@ -153,10 +153,10 @@ class TestTaskNumbering:
         m3 = create_task_db("id-3", "Meeting 3", "M", "2025-01-21T10:00")
 
         # Same date -> M-01, M-02
-        assert m1["task_key"] == "M-01"
-        assert m2["task_key"] == "M-02"
+        assert m1.task_key == "M-01"
+        assert m2.task_key == "M-02"
         # Different date -> M-01 again
-        assert m3["task_key"] == "M-01"
+        assert m3.task_key == "M-01"
 
     def test_per_date_numbering_daily_tasks(self, test_db):
         """Daily tasks (D category) get per-date numbering."""
@@ -164,9 +164,9 @@ class TestTaskNumbering:
         d2 = create_task_db("id-2", "Daily 2", "D", "2025-01-20")
         d3 = create_task_db("id-3", "Daily 3", "D", "2025-01-21")
 
-        assert d1["task_key"] == "D-01"
-        assert d2["task_key"] == "D-02"
-        assert d3["task_key"] == "D-01"
+        assert d1.task_key == "D-01"
+        assert d2.task_key == "D-02"
+        assert d3.task_key == "D-01"
 
     def test_datetime_vs_date_same_numbering(self, test_db):
         """Tasks with datetime and date-only on same day share numbering."""
@@ -174,16 +174,16 @@ class TestTaskNumbering:
         m1 = create_task_db("id-1", "Morning meeting", "M", "2025-01-20T09:00")
         m2 = create_task_db("id-2", "All-day event", "M", "2025-01-20")
 
-        assert m1["task_key"] == "M-01"
-        assert m2["task_key"] == "M-02"
+        assert m1.task_key == "M-01"
+        assert m2.task_key == "M-02"
 
     def test_custom_category_sequential(self, test_db):
         """Custom categories get sequential numbering."""
         p1 = create_task_db("id-1", "Project 1", "P")
         p2 = create_task_db("id-2", "Project 2", "P")
 
-        assert p1["task_key"] == "P-01"
-        assert p2["task_key"] == "P-02"
+        assert p1.task_key == "P-01"
+        assert p2.task_key == "P-02"
 
 
 class TestRecurrenceCalculation:
@@ -266,9 +266,9 @@ class TestTemplateAndInstanceBehavior:
         """Templates have is_template=True and R- prefix key."""
         task = create_task_db("id-1", "Daily standup", "D", "2025-01-20", "daily", is_template=True)
 
-        assert task["is_template"] is True
-        assert task["task_key"] == "R-D-01"
-        assert task["recurrence_rule"] == "daily"
+        assert task.is_template is True
+        assert task.task_key == "R-D-01"
+        assert task.recurrence_rule == "daily"
 
     def test_template_numbering_separate(self, test_db):
         """Templates have separate numbering from instances."""
@@ -279,9 +279,9 @@ class TestTemplateAndInstanceBehavior:
         # Create another instance
         inst2 = create_task_db("id-3", "Instance task 2", "D", "2025-01-20")
 
-        assert inst["task_key"] == "D-01"
-        assert tpl["task_key"] == "R-D-01"
-        assert inst2["task_key"] == "D-02"
+        assert inst.task_key == "D-01"
+        assert tpl.task_key == "R-D-01"
+        assert inst2.task_key == "D-02"
 
     def test_instance_completes_normally(self, test_db):
         """Instances complete normally without date advancement."""
@@ -290,8 +290,8 @@ class TestTemplateAndInstanceBehavior:
         updated = update_task_db("id-1", completed=True)
 
         # Should mark complete (no advancement)
-        assert updated["completed"] is True
-        assert updated["scheduled_date"] == "2025-01-20"
+        assert updated.completed is True
+        assert updated.scheduled_date == "2025-01-20"
 
     def test_create_instance_with_parent(self, test_db):
         """Instances can link to parent template."""
@@ -299,15 +299,15 @@ class TestTemplateAndInstanceBehavior:
         inst = create_task_db("inst-1", "Daily standup", "D", "2025-01-21", "daily",
                               is_template=False, parent_task_id="tpl-1")
 
-        assert inst["parent_task_id"] == "tpl-1"
-        assert inst["is_template"] is False
+        assert inst.parent_task_id == "tpl-1"
+        assert inst.is_template is False
 
     def test_complete_non_recurring_task(self, test_db):
         """Completing a non-recurring task marks it complete normally."""
         task = create_task_db("id-1", "One-time task", "T")
         updated = update_task_db("id-1", completed=True)
 
-        assert updated["completed"] is True
+        assert updated.completed is True
 
 
 class TestConversation:
