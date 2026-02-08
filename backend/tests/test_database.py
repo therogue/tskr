@@ -85,6 +85,44 @@ class TestTaskCRUD:
         result = update_task_db("nonexistent", title="New title")
         assert result is None
 
+    def test_update_task_no_changes(self, test_db):
+        """Update with unchanged values still returns task."""
+        task = create_task_db("id-1", "Same title", "T")
+        updated = update_task_db("id-1", title="Same title")
+
+        assert updated is not None
+        assert updated.title == "Same title"
+        assert updated.id == task.id
+
+    def test_update_task_multiple_fields(self, test_db):
+        """Update multiple fields at once."""
+        create_task_db("id-1", "Old title", "T")
+        updated = update_task_db("id-1", title="New title", completed=True)
+
+        assert updated.title == "New title"
+        assert updated.completed is True
+
+    def test_update_task_bool_field(self, test_db):
+        """Bool field updates work correctly."""
+        create_task_db("id-1", "Task", "T")
+
+        # Mark as completed
+        updated = update_task_db("id-1", completed=True)
+        assert updated.completed is True
+
+        # Mark as incomplete
+        updated = update_task_db("id-1", completed=False)
+        assert updated.completed is False
+
+    def test_update_task_only_changed_fields(self, test_db):
+        """Only changed fields are updated."""
+        task = create_task_db("id-1", "Title", "T", "2025-01-20")
+
+        # Update only title, date should remain
+        updated = update_task_db("id-1", title="New Title")
+        assert updated.title == "New Title"
+        assert updated.scheduled_date == "2025-01-20"
+
     def test_delete_task(self, test_db):
         """Delete a task."""
         create_task_db("id-1", "Delete me", "T")

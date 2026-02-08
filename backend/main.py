@@ -96,6 +96,17 @@ Respond with this exact JSON format:
 
 For update/delete operations, you can use "task_key" instead of "title" to identify the task (e.g., "M-01").
 For update operation, include any fields to change. Only fields provided will be updated.
+Task identification:
+- You will receive a list of current tasks with their task_key and title
+- Use task_key for reliable identification (e.g., "M-01")
+- Or match by title from the provided task list
+- For complete/delete/schedule/set_recurrence/remove_recurrence operations, use task_key when available
+
+Task identification:
+- You will receive a list of current tasks with their task_key and title
+- Use task_key for reliable identification (e.g., "M-01")
+- Or match by title from the provided task list
+- For complete/delete/schedule/set_recurrence/remove_recurrence operations, use task_key when available
 
 If the request is unclear or not a task operation, respond with:
 {{
@@ -239,6 +250,12 @@ async def chat(chat_request: ChatRequest) -> dict:
     # Insert today's date into the system prompt
     today = datetime.now().strftime("%Y-%m-%d")
     system_prompt = SYSTEM_PROMPT.format(today=today)
+
+    # Add current tasks to system prompt for context
+    tasks = get_all_tasks()
+    if tasks:
+        task_list = "\n".join([f"- {task.task_key}: {task.title}" for task in tasks if not task.completed])
+        system_prompt += f"\n\nCurrent incomplete tasks:\n{task_list}"
 
     # Call Claude API
     try:
