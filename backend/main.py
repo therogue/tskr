@@ -102,6 +102,12 @@ Task identification:
 - Or match by title from the provided task list
 - For complete/delete/schedule/set_recurrence/remove_recurrence operations, use task_key when available
 
+Task identification:
+- You will receive a list of current tasks with their task_key and title
+- Use task_key for reliable identification (e.g., "M-01")
+- Or match by title from the provided task list
+- For complete/delete/schedule/set_recurrence/remove_recurrence operations, use task_key when available
+
 If the request is unclear or not a task operation, respond with:
 {{
     "operation": "none",
