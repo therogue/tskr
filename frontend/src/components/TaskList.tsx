@@ -254,13 +254,18 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
       ? tasks.filter(t => t.completed && t.recurrence_rule && !t.is_template)
       : tasks.filter(t => t.is_template)
 
+    // Regular tasks: category T, not template, matching completed status
+    const regularTasks = tasks.filter(t =>
+      t.category === 'T' && !t.is_template && t.completed === completedFilter
+    )
+
     // Projects: categories not in M, T, D, not templates, matching completed status
     const projectTasks = tasks.filter(t =>
       !t.is_template && !['M', 'T', 'D'].includes(t.category) && t.completed === completedFilter
     )
     const projectCategories = [...new Set(projectTasks.map(t => t.category))].sort()
 
-    const isEmpty = meetings.length === 0 && recurrent.length === 0 && projectTasks.length === 0
+    const isEmpty = meetings.length === 0 && recurrent.length === 0 && regularTasks.length === 0 && projectTasks.length === 0
 
     return (
       <>
@@ -272,6 +277,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
           <>
             {renderSection('Meetings', meetings, true)}
             {renderRecurrentSection(recurrent, true)}
+            {renderSection('Tasks', regularTasks, true)}
             {projectCategories.map(cat =>
               renderSection(cat, projectTasks.filter(t => t.category === cat), true)
             )}

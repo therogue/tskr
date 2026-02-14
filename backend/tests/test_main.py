@@ -9,7 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import create_task_db, get_all_tasks
-from main import SYSTEM_PROMPT
+from prompts import SYSTEM_PROMPT
 
 
 class TestSystemPromptTaskContext:

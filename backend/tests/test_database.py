@@ -473,6 +473,42 @@ class TestTemplateStartDate:
         assert tasks[0].is_template is False
 
 
+class TestOverdueFiltering:
+    """Tests for overdue task filtering in day view."""
+
+    def test_overdue_recurrent_instance_excluded(self, test_db):
+        """Incomplete recurrent instances from past days should not appear in today's view."""
+        tpl = create_task_db("tpl-1", "Stretch", "D", "2025-06-01", "daily", is_template=True)
+        # Past incomplete instance from template
+        create_task_db("inst-old", "Stretch", "D", "2025-06-01", "daily",
+                       is_template=False, parent_task_id="tpl-1")
+
+        tasks = get_tasks_for_date("2025-06-15", "2025-06-15")
+        task_ids = [t.id for t in tasks]
+
+        # Old recurrent instance should NOT appear
+        assert "inst-old" not in task_ids
+
+    def test_overdue_non_recurrent_task_included(self, test_db):
+        """Incomplete non-recurrent tasks with past dates should appear in today's view."""
+        create_task_db("task-1", "Buy groceries", "T", "2025-06-01")
+
+        tasks = get_tasks_for_date("2025-06-15", "2025-06-15")
+        task_ids = [t.id for t in tasks]
+
+        assert "task-1" in task_ids
+
+    def test_completed_non_recurrent_task_excluded(self, test_db):
+        """Completed non-recurrent tasks with past dates should not appear in today's view."""
+        create_task_db("task-1", "Buy groceries", "T", "2025-06-01")
+        update_task_db("task-1", completed=True)
+
+        tasks = get_tasks_for_date("2025-06-15", "2025-06-15")
+        task_ids = [t.id for t in tasks]
+
+        assert "task-1" not in task_ids
+
+
 class TestConversation:
     """Tests for conversation persistence."""
 
