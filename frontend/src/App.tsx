@@ -15,6 +15,7 @@ interface Task {
   created_at: string
   is_template: boolean
   parent_task_id: string | null
+  duration_minutes: number | null
   projected?: boolean
 }
 
