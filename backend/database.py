@@ -114,6 +114,7 @@ def _row_to_task(row) -> Task:
         created_at=row["created_at"],
         is_template=bool(row["is_template"]) if "is_template" in keys else False,
         parent_task_id=row["parent_task_id"] if "parent_task_id" in keys else None,
+        duration_minutes=row["duration_minutes"] if "duration_minutes" in keys else None,
     )
 
 
@@ -321,7 +322,8 @@ def _create_instance_from_template(template: Task, target_date: str) -> Task:
         scheduled_date=instance_scheduled,
         recurrence_rule=template.recurrence_rule,  # Copy for display
         is_template=False,
-        parent_task_id=template.id
+        parent_task_id=template.id,
+        duration_minutes=template.duration_minutes
     )
 
 
@@ -421,7 +423,8 @@ def create_task_db(
     scheduled_date: Optional[str] = None,
     recurrence_rule: Optional[str] = None,
     is_template: bool = False,
-    parent_task_id: Optional[str] = None
+    parent_task_id: Optional[str] = None,
+    duration_minutes: Optional[int] = None
 ) -> Task:
     """Create a task with auto-generated task_key.
     scheduled_date can be YYYY-MM-DD or YYYY-MM-DDTHH:MM format.
@@ -443,9 +446,9 @@ def create_task_db(
     with get_db() as conn:
         conn.execute(
             """INSERT INTO tasks
-               (id, task_key, category, task_number, title, completed, scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
-               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)""",
-            (task_id, task_key, category, task_number, title, scheduled_date, recurrence_rule, created_at, int(is_template), parent_task_id)
+               (id, task_key, category, task_number, title, completed, scheduled_date, recurrence_rule, created_at, is_template, parent_task_id, duration_minutes)
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)""",
+            (task_id, task_key, category, task_number, title, scheduled_date, recurrence_rule, created_at, int(is_template), parent_task_id, duration_minutes)
         )
         conn.commit()
 
@@ -461,6 +464,7 @@ def create_task_db(
         created_at=created_at,
         is_template=is_template,
         parent_task_id=parent_task_id,
+        duration_minutes=duration_minutes,
     )
 
 def update_task_db(task_id: str, **updates) -> Optional[Task]:
