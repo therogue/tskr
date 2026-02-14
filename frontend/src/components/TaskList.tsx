@@ -1,3 +1,5 @@
+import { useState, useEffect, useRef } from 'react'
+
 interface Task {
   id: string
   task_key: string
@@ -15,6 +17,7 @@ interface Task {
 }
 
 type ViewMode = 'day' | 'all' | 'completed'
+type DayViewMode = 'list' | 'calendar'
 
 interface TaskListProps {
   tasks: Task[]
@@ -43,7 +46,22 @@ function classifyRecurrence(rule: string | null): string {
   return 'Other'
 }
 
+const HOUR_HEIGHT = 60 // px per hour; 1px per minute
+const CALENDAR_TOTAL_HEIGHT = 24 * HOUR_HEIGHT // 1440px
+const DEFAULT_DURATION = 30 // minutes, fallback when duration_minutes is null
+const SCROLL_TO_HOUR = 8 // auto-scroll to 8am on mount
+
 function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, onDateChange, onTasksUpdate }: TaskListProps) {
+  const [dayViewMode, setDayViewMode] = useState<DayViewMode>('list')
+  const calendarRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll calendar to ~8am when switching to calendar view
+  useEffect(() => {
+    if (dayViewMode === 'calendar' && calendarRef.current) {
+      calendarRef.current.scrollTop = SCROLL_TO_HOUR * HOUR_HEIGHT
+    }
+  }, [dayViewMode, selectedDate])
+
   async function handleToggle(task: Task) {
     try {
       const res = await fetch(`${API_URL}/tasks/${task.id}`, {
@@ -187,9 +205,78 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     )
   }
 
+  function renderCalendarView() {
+    // Split tasks: timed (scheduled_date contains 'T') vs untimed
+    const timedTasks = tasks.filter(t => t.scheduled_date && t.scheduled_date.includes('T'))
+    const untimedTasks = tasks.filter(t => !t.scheduled_date || !t.scheduled_date.includes('T'))
+
+    // Generate hour labels 0-23
+    const hours = Array.from({ length: 24 }, (_, i) => i)
+
+    function formatHourLabel(hour: number): string {
+      if (hour === 0) return '12am'
+      if (hour < 12) return `${hour}am`
+      if (hour === 12) return '12pm'
+      return `${hour - 12}pm`
+    }
+
+    return (
+      <>
+        {untimedTasks.length > 0 && (
+          <div className="calendar-unscheduled">
+            <h3 className="task-section-title">Unscheduled</h3>
+            <ul className="task-list">
+              {untimedTasks.map(t => renderTaskItem(t))}
+            </ul>
+          </div>
+        )}
+        <div className="calendar-container" ref={calendarRef}>
+          <div className="calendar-grid" style={{ height: CALENDAR_TOTAL_HEIGHT }}>
+            {hours.map(hour => (
+              <div key={hour} className="calendar-hour-row" style={{ top: hour * HOUR_HEIGHT, height: HOUR_HEIGHT }}>
+                <span className="calendar-hour-label">{formatHourLabel(hour)}</span>
+              </div>
+            ))}
+            {timedTasks.map(task => {
+              // Assumption: scheduled_date format is YYYY-MM-DDTHH:MM
+              const timePart = task.scheduled_date!.slice(11, 16)
+              const [h, m] = timePart.split(':').map(Number)
+              const topPx = h * HOUR_HEIGHT + m * (HOUR_HEIGHT / 60)
+              const duration = task.duration_minutes || DEFAULT_DURATION
+              const heightPx = duration * (HOUR_HEIGHT / 60)
+
+              const classes = [
+                'calendar-task-block',
+                task.completed ? 'completed' : '',
+                task.projected ? 'projected' : ''
+              ].filter(Boolean).join(' ')
+
+              return (
+                <div
+                  key={task.id + (task.projected ? '-projected' : '')}
+                  className={classes}
+                  style={{ top: topPx, height: Math.max(heightPx, 16) }}
+                >
+                  <input
+                    type="checkbox"
+                    className="task-checkbox"
+                    checked={task.completed}
+                    onChange={() => handleToggle(task)}
+                  />
+                  <span className="calendar-task-key">{task.task_key}</span>
+                  <span className="calendar-task-title">{task.title}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </>
+    )
+  }
+
   function renderDayView() {
     const isEmpty = tasks.length === 0
-    // Group by category for day view
+    // Group by category for list view
     const meetings = tasks.filter(t => t.category === 'M')
     const daily = tasks.filter(t => t.category === 'D')
     const other = tasks.filter(t => t.category !== 'M' && t.category !== 'D')
@@ -198,7 +285,6 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
       <>
         <div className="date-nav">
           <button className="date-nav-btn" onClick={() => {
-            // Parse manually to avoid UTC timezone issues
             const [year, month, day] = selectedDate.split('-').map(Number)
             const d = new Date(year, month - 1, day)
             d.setDate(d.getDate() - 1)
@@ -211,7 +297,6 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
             onChange={e => onDateChange(e.target.value)}
           />
           <button className="date-nav-btn" onClick={() => {
-            // Parse manually to avoid UTC timezone issues
             const [year, month, day] = selectedDate.split('-').map(Number)
             const d = new Date(year, month - 1, day)
             d.setDate(d.getDate() + 1)
@@ -222,14 +307,28 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
           )}
         </div>
         <h2 className="date-header">{formatDateHeader(selectedDate)}</h2>
-        {isEmpty ? (
-          <p className="empty-state">No tasks for this day.</p>
+        <div className="day-view-toggle">
+          <button
+            className={dayViewMode === 'list' ? 'active' : ''}
+            onClick={() => setDayViewMode('list')}
+          >List</button>
+          <button
+            className={dayViewMode === 'calendar' ? 'active' : ''}
+            onClick={() => setDayViewMode('calendar')}
+          >Calendar</button>
+        </div>
+        {dayViewMode === 'list' ? (
+          isEmpty ? (
+            <p className="empty-state">No tasks for this day.</p>
+          ) : (
+            <>
+              {renderSection('Meetings', meetings)}
+              {renderSection('Daily', daily)}
+              {renderSection('Tasks', other)}
+            </>
+          )
         ) : (
-          <>
-            {renderSection('Meetings', meetings)}
-            {renderSection('Daily', daily)}
-            {renderSection('Tasks', other)}
-          </>
+          renderCalendarView()
         )}
       </>
     )

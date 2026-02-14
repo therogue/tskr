@@ -428,10 +428,13 @@ def create_task_db(
     duration_minutes: Optional[int] = None
 ) -> Task:
     """Create a task with auto-generated task_key.
+    duration_minutes defaults to 15 if not provided.
     scheduled_date can be YYYY-MM-DD or YYYY-MM-DDTHH:MM format.
     If is_template=True, creates a recurring template with R- prefix key.
     If parent_task_id is set, this is an instance created from a template.
     """
+    if duration_minutes is None:
+        duration_minutes = 15
     created_at = datetime.now().isoformat()
     # Extract date portion for task numbering (D/M categories use per-date numbering)
     date_for_numbering = scheduled_date[:10] if scheduled_date else None
