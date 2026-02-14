@@ -36,6 +36,15 @@ Common update scenarios:
 - Rename a task: set "title": "new title"
 - Make task recurring: set "recurrence_rule": "pattern"
 
+Duration estimation:
+- When creating or updating a task, ensure that it has a duration (in minutes)
+- If the user specifies a duration (e.g., "1 hour meeting"), use that value.
+- Otherwise, estimate how long the task will take in minutes.
+- Use common increments: 15, 30, 45, 60, 90, 120 minutes.
+- For example, meetings default to 30-60min, code reviews 30-60min, quick tasks 15min.
+- Default to 15 if truly uncertain.
+- Always set duration_minutes to the user-specified duration, if present; otherwise, use your estimated duration
+
 Respond with this exact JSON format:
 {{
     "operation": "create" | "update" | "delete",
@@ -43,6 +52,7 @@ Respond with this exact JSON format:
     "category": "T" | "D" | "M" | custom,
     "scheduled_date": "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" or null,
     "recurrence_rule": "pattern" or null,
+    "duration_minutes": integer or null,
     "completed": true | false | null,
     "message": "friendly response to user"
 }}
