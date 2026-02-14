@@ -231,6 +231,120 @@ body {
   font-style: italic;
 }
 
+/* Day View Toggle */
+.day-view-toggle {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.day-view-toggle button {
+  padding: 0.25rem 0.75rem;
+  background: transparent;
+  color: #607080;
+  border: 1px solid #3a4f6f;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.day-view-toggle button:hover {
+  color: #a0b0c0;
+}
+
+.day-view-toggle button.active {
+  color: #6b8cce;
+  border-color: #6b8cce;
+  background: rgba(107, 140, 206, 0.1);
+}
+
+/* Calendar View */
+.calendar-unscheduled {
+  margin-bottom: 1rem;
+}
+
+.calendar-container {
+  position: relative;
+  overflow-y: auto;
+  flex: 1;
+  /* Fill remaining panel height */
+  max-height: calc(100vh - 220px);
+}
+
+.calendar-grid {
+  position: relative;
+}
+
+.calendar-hour-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid #2a3f5f;
+  display: flex;
+  align-items: flex-start;
+}
+
+.calendar-hour-label {
+  width: 50px;
+  flex-shrink: 0;
+  padding: 2px 8px 0 0;
+  text-align: right;
+  font-size: 0.7rem;
+  color: #607080;
+}
+
+.calendar-task-block {
+  position: absolute;
+  left: 55px;
+  right: 8px;
+  background: rgba(107, 140, 206, 0.25);
+  border-left: 3px solid #6b8cce;
+  border-radius: 4px;
+  padding: 2px 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 0.8rem;
+  cursor: default;
+}
+
+.calendar-task-block:hover {
+  background: rgba(107, 140, 206, 0.35);
+}
+
+.calendar-task-block.completed {
+  opacity: 0.5;
+}
+
+.calendar-task-block.completed .calendar-task-title {
+  text-decoration: line-through;
+}
+
+.calendar-task-block.projected {
+  border-left-style: dashed;
+  opacity: 0.6;
+}
+
+.calendar-task-block.projected .calendar-task-title {
+  font-style: italic;
+}
+
+.calendar-task-key {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #6b8cce;
+  white-space: nowrap;
+}
+
+.calendar-task-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
 /* Chat Panel */
 .chat-panel {
   flex: 1;
