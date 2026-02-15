@@ -268,11 +268,18 @@ body {
 /* Day View Toggle */
 .day-view-toggle {
   display: flex;
-  gap: 0.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
-.day-view-toggle button {
+.day-view-toggle-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.day-view-toggle-tabs button {
   padding: 0.25rem 0.75rem;
   background: transparent;
   color: #607080;
@@ -283,14 +290,34 @@ body {
   font-weight: 500;
 }
 
-.day-view-toggle button:hover {
+.day-view-toggle-tabs button:hover {
   color: #a0b0c0;
 }
 
-.day-view-toggle button.active {
+.day-view-toggle-tabs button.active {
   color: #6b8cce;
   border-color: #6b8cce;
   background: rgba(107, 140, 206, 0.1);
+}
+
+.delete-selected-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  background: transparent;
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.delete-selected-btn:hover {
+  background: rgba(231, 76, 60, 0.2);
+  color: #ff6b6b;
+  border-color: #ff6b6b;
 }
 
 /* Calendar View */

@@ -117,6 +117,18 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     }
   }
 
+  async function handleDeleteSelected() {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    try {
+      await Promise.all(ids.map(id => fetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' })))
+      setSelectedIds(new Set())
+      onTasksUpdate()
+    } catch (err) {
+      // Ignore errors
+    }
+  }
+
   function handleSelectBoxClick(task: Task, indexInOrdered: number, e: React.MouseEvent) {
     e.stopPropagation()
     const ordered = orderedVisibleTasksRef.current
@@ -426,14 +438,25 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
         </div>
         <h2 className="date-header">{formatDateHeader(selectedDate)}</h2>
         <div className="day-view-toggle">
-          <button
-            className={dayViewMode === 'list' ? 'active' : ''}
-            onClick={() => setDayViewMode('list')}
-          >List</button>
-          <button
-            className={dayViewMode === 'calendar' ? 'active' : ''}
-            onClick={() => setDayViewMode('calendar')}
-          >Calendar</button>
+          <div className="day-view-toggle-tabs">
+            <button
+              className={dayViewMode === 'list' ? 'active' : ''}
+              onClick={() => setDayViewMode('list')}
+            >List</button>
+            <button
+              className={dayViewMode === 'calendar' ? 'active' : ''}
+              onClick={() => setDayViewMode('calendar')}
+            >Calendar</button>
+          </div>
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              className="delete-selected-btn"
+              onClick={handleDeleteSelected}
+            >
+              <TrashIcon /> Delete
+            </button>
+          )}
         </div>
         {dayViewMode === 'list' ? (
           isEmpty ? (
