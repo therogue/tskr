@@ -31,6 +31,23 @@ interface TaskListProps {
 
 const API_URL = 'http://localhost:8000'
 
+// Flatten recurrent tasks in display order (Daily, Weekdays, Weekly, Monthly, Other)
+function flattenRecurrent(templates: Task[]): Task[] {
+  const groups: Record<string, Task[]> = { Daily: [], Weekdays: [], Weekly: [], Monthly: [], Other: [] }
+  templates.forEach(t => {
+    const category = classifyRecurrence(t.recurrence_rule)
+    groups[category].push(t)
+  })
+  const orderedKeys: (keyof typeof groups)[] = ['Daily', 'Weekdays', 'Weekly', 'Monthly']
+  orderedKeys.forEach(key => {
+    if (groups[key].length < 2) {
+      groups['Other'].push(...groups[key])
+      groups[key] = []
+    }
+  })
+  return [...groups['Daily'], ...groups['Weekdays'], ...groups['Weekly'], ...groups['Monthly'], ...groups['Other']]
+}
+
 // Recurrence pattern classification
 // Assumption: recurrence_rule values are lowercase strings like "daily", "weekdays", "monday", "tue,thu", "monthly", "01-15"
 function classifyRecurrence(rule: string | null): string {
@@ -46,6 +63,15 @@ function classifyRecurrence(rule: string | null): string {
   return 'Other'
 }
 
+const TrashIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <line x1="10" y1="11" x2="10" y2="17" />
+    <line x1="14" y1="11" x2="14" y2="17" />
+  </svg>
+)
+
 const HOUR_HEIGHT = 60 // px per hour; 1px per minute
 const CALENDAR_TOTAL_HEIGHT = 24 * HOUR_HEIGHT // 1440px
 const DEFAULT_DURATION = 30 // minutes, fallback when duration_minutes is null
@@ -54,6 +80,9 @@ const SCROLL_TO_HOUR = 8 // auto-scroll to 8am on mount
 function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, onDateChange, onTasksUpdate }: TaskListProps) {
   const [dayViewMode, setDayViewMode] = useState<DayViewMode>('list')
   const calendarRef = useRef<HTMLDivElement>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const lastClickedIndexRef = useRef<number | null>(null)
+  const orderedVisibleTasksRef = useRef<Task[]>([])
 
   // Auto-scroll calendar to ~8am when switching to calendar view
   useEffect(() => {
@@ -74,6 +103,65 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
       }
     } catch (err) {
       // Ignore errors
+    }
+  }
+
+  async function handleDelete(task: Task) {
+    try {
+      const res = await fetch(`${API_URL}/tasks/${task.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        onTasksUpdate()
+      }
+    } catch (err) {
+      // Ignore errors
+    }
+  }
+
+  async function handleDeleteSelected() {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    try {
+      await Promise.all(ids.map(id => fetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' })))
+      setSelectedIds(new Set())
+      onTasksUpdate()
+    } catch (err) {
+      // Ignore errors
+    }
+  }
+
+  function handleSelectBoxClick(task: Task, indexInOrdered: number, e: React.MouseEvent) {
+    e.stopPropagation()
+    const ordered = orderedVisibleTasksRef.current
+    if (!ordered) return
+
+    if (e.ctrlKey || e.metaKey) {
+      // CTRL+click: toggle this task
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(task.id)) next.delete(task.id)
+        else next.add(task.id)
+        return next
+      })
+      lastClickedIndexRef.current = indexInOrdered
+    } else if (e.shiftKey) {
+      // SHIFT+click: select range
+      const last = lastClickedIndexRef.current ?? indexInOrdered
+      const lo = Math.min(last, indexInOrdered)
+      const hi = Math.max(last, indexInOrdered)
+      const ids = new Set<string>()
+      for (let i = lo; i <= hi; i++) ids.add(ordered[i].id)
+      setSelectedIds(ids)
+    } else {
+      // Normal click: select only this, or deselect if already selected
+      setSelectedIds(prev => {
+        if (prev.has(task.id)) {
+          const next = new Set(prev)
+          next.delete(task.id)
+          return next
+        }
+        return new Set([task.id])
+      })
+      lastClickedIndexRef.current = indexInOrdered
     }
   }
 
@@ -111,20 +199,28 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   }
 
-  function renderTaskItem(task: Task, showDate: boolean = false) {
+  function renderTaskItem(task: Task, indexInOrdered: number, showDate: boolean = false) {
+    const isSelected = selectedIds.has(task.id)
     const classes = [
       'task-item',
       task.completed ? 'completed' : '',
-      task.projected ? 'projected' : ''
+      task.projected ? 'projected' : '',
+      isSelected ? 'selected' : ''
     ].filter(Boolean).join(' ')
 
     return (
-      <li key={task.id + (task.projected ? '-projected' : '')} className={classes}>
+      <li
+        key={task.id + (task.projected ? '-projected' : '')}
+        className={classes}
+        onMouseDown={(e) => e.shiftKey && e.preventDefault()}
+        onClick={(e) => handleSelectBoxClick(task, indexInOrdered, e)}
+      >
         <input
           type="checkbox"
           className="task-checkbox"
           checked={task.completed}
           onChange={() => handleToggle(task)}
+          onClick={(e) => e.stopPropagation()}
         />
         <span className="task-key">{task.task_key}</span>
         <span className="task-title">{task.title}</span>
@@ -136,36 +232,44 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
             {showDate ? formatDateTime(task.scheduled_date) : formatTime(task.scheduled_date)}
           </span>
         )}
+        <button
+          type="button"
+          className="task-delete-btn"
+          aria-label="Delete task"
+          onClick={(e) => { e.stopPropagation(); handleDelete(task) }}
+        >
+          <TrashIcon />
+        </button>
       </li>
     )
   }
 
-  function renderSection(title: string, sectionTasks: Task[], showDate: boolean = false) {
+  function renderSection(title: string, sectionTasks: Task[], showDate: boolean, startIndex: number) {
     if (sectionTasks.length === 0) return null
     return (
       <div className="task-section">
         <h3 className="task-section-title">{title}</h3>
         <ul className="task-list">
-          {sectionTasks.map(t => renderTaskItem(t, showDate))}
+          {sectionTasks.map((t, i) => renderTaskItem(t, startIndex + i, showDate))}
         </ul>
       </div>
     )
   }
 
-  function renderSubsection(title: string, sectionTasks: Task[], showDate: boolean = false) {
+  function renderSubsection(title: string, sectionTasks: Task[], showDate: boolean, startIndex: number) {
     if (sectionTasks.length === 0) return null
     return (
       <div className="task-subsection">
         <h4 className="task-subsection-title">{title}</h4>
         <ul className="task-list">
-          {sectionTasks.map(t => renderTaskItem(t, showDate))}
+          {sectionTasks.map((t, i) => renderTaskItem(t, startIndex + i, showDate))}
         </ul>
       </div>
     )
   }
 
   // Group templates by recurrence pattern, collapsing small groups into Other
-  function renderRecurrentSection(templates: Task[], showDate: boolean = false) {
+  function renderRecurrentSection(templates: Task[], showDate: boolean, startIndex: number) {
     if (templates.length === 0) return null
 
     const groups: Record<string, Task[]> = { Daily: [], Weekdays: [], Weekly: [], Monthly: [], Other: [] }
@@ -184,21 +288,29 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     })
 
     const hasSubsections = orderedKeys.some(k => groups[k].length > 0)
+    const subsections: { title: string; tasks: Task[] }[] = [
+      { title: 'Daily', tasks: groups['Daily'] },
+      { title: 'Weekdays', tasks: groups['Weekdays'] },
+      { title: 'Weekly', tasks: groups['Weekly'] },
+      { title: 'Monthly', tasks: groups['Monthly'] },
+      { title: 'Other', tasks: groups['Other'] },
+    ]
+    let runningIndex = startIndex
 
     return (
       <div className="task-section">
         <h3 className="task-section-title">Recurrent</h3>
         {hasSubsections ? (
           <>
-            {renderSubsection('Daily', groups['Daily'], showDate)}
-            {renderSubsection('Weekdays', groups['Weekdays'], showDate)}
-            {renderSubsection('Weekly', groups['Weekly'], showDate)}
-            {renderSubsection('Monthly', groups['Monthly'], showDate)}
-            {renderSubsection('Other', groups['Other'], showDate)}
+            {subsections.map(({ title, tasks: t }) => {
+              const si = runningIndex
+              runningIndex += t.length
+              return renderSubsection(title, t, showDate, si)
+            })}
           </>
         ) : (
           <ul className="task-list">
-            {groups['Other'].map(t => renderTaskItem(t, showDate))}
+            {groups['Other'].map((t, i) => renderTaskItem(t, startIndex + i, showDate))}
           </ul>
         )}
       </div>
@@ -207,8 +319,12 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
 
   function renderCalendarView() {
     // Split tasks: timed (scheduled_date contains 'T') vs untimed
-    const timedTasks = tasks.filter(t => t.scheduled_date && t.scheduled_date.includes('T'))
+    const timedTasks = [...tasks.filter(t => t.scheduled_date && t.scheduled_date.includes('T'))].sort(
+      (a, b) => (a.scheduled_date! < b.scheduled_date! ? -1 : 1)
+    )
     const untimedTasks = tasks.filter(t => !t.scheduled_date || !t.scheduled_date.includes('T'))
+    const ordered: Task[] = [...untimedTasks, ...timedTasks]
+    orderedVisibleTasksRef.current = ordered
 
     // Generate hour labels 0-23
     const hours = Array.from({ length: 24 }, (_, i) => i)
@@ -226,7 +342,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
           <div className="calendar-unscheduled">
             <h3 className="task-section-title">Unscheduled</h3>
             <ul className="task-list">
-              {untimedTasks.map(t => renderTaskItem(t))}
+              {untimedTasks.map((t, i) => renderTaskItem(t, i))}
             </ul>
           </div>
         )}
@@ -237,7 +353,9 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
                 <span className="calendar-hour-label">{formatHourLabel(hour)}</span>
               </div>
             ))}
-            {timedTasks.map(task => {
+            {timedTasks.map((task, i) => {
+              const indexInOrdered = untimedTasks.length + i
+              const isSelected = selectedIds.has(task.id)
               // Assumption: scheduled_date format is YYYY-MM-DDTHH:MM
               const timePart = task.scheduled_date!.slice(11, 16)
               const [h, m] = timePart.split(':').map(Number)
@@ -248,7 +366,8 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
               const classes = [
                 'calendar-task-block',
                 task.completed ? 'completed' : '',
-                task.projected ? 'projected' : ''
+                task.projected ? 'projected' : '',
+                isSelected ? 'selected' : ''
               ].filter(Boolean).join(' ')
 
               return (
@@ -256,15 +375,26 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
                   key={task.id + (task.projected ? '-projected' : '')}
                   className={classes}
                   style={{ top: topPx, height: Math.max(heightPx, 16) }}
+                  onMouseDown={(e) => e.shiftKey && e.preventDefault()}
+                  onClick={(e) => handleSelectBoxClick(task, indexInOrdered, e)}
                 >
                   <input
                     type="checkbox"
                     className="task-checkbox"
                     checked={task.completed}
                     onChange={() => handleToggle(task)}
+                    onClick={(e) => e.stopPropagation()}
                   />
                   <span className="calendar-task-key">{task.task_key}</span>
                   <span className="calendar-task-title">{task.title}</span>
+                  <button
+                    type="button"
+                    className="task-delete-btn"
+                    aria-label="Delete task"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(task) }}
+                  >
+                    <TrashIcon />
+                  </button>
                 </div>
               )
             })}
@@ -308,23 +438,42 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
         </div>
         <h2 className="date-header">{formatDateHeader(selectedDate)}</h2>
         <div className="day-view-toggle">
-          <button
-            className={dayViewMode === 'list' ? 'active' : ''}
-            onClick={() => setDayViewMode('list')}
-          >List</button>
-          <button
-            className={dayViewMode === 'calendar' ? 'active' : ''}
-            onClick={() => setDayViewMode('calendar')}
-          >Calendar</button>
+          <div className="day-view-toggle-tabs">
+            <button
+              className={dayViewMode === 'list' ? 'active' : ''}
+              onClick={() => setDayViewMode('list')}
+            >List</button>
+            <button
+              className={dayViewMode === 'calendar' ? 'active' : ''}
+              onClick={() => setDayViewMode('calendar')}
+            >Calendar</button>
+          </div>
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              className="delete-selected-btn"
+              onClick={handleDeleteSelected}
+            >
+              <TrashIcon /> Delete
+            </button>
+          )}
         </div>
         {dayViewMode === 'list' ? (
           isEmpty ? (
             <p className="empty-state">No tasks for this day.</p>
           ) : (
             <>
-              {renderSection('Meetings', meetings)}
-              {renderSection('Daily', daily)}
-              {renderSection('Tasks', other)}
+              {(() => {
+                const ordered = [...meetings, ...daily, ...other]
+                orderedVisibleTasksRef.current = ordered
+                return (
+                  <>
+                    {renderSection('Meetings', meetings, false, 0)}
+                    {renderSection('Daily', daily, false, meetings.length)}
+                    {renderSection('Tasks', other, false, meetings.length + daily.length)}
+                  </>
+                )
+              })()}
             </>
           )
         ) : (
@@ -366,7 +515,16 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     const projectCategories = [...new Set(projectTasks.map(t => t.category))].sort()
 
     const isEmpty = meetings.length === 0 && recurrent.length === 0 && regularTasks.length === 0 && projectTasks.length === 0
+    const recurrentFlat = flattenRecurrent(recurrent)
+    const ordered: Task[] = [
+      ...meetings,
+      ...recurrentFlat,
+      ...regularTasks,
+      ...projectCategories.flatMap(cat => projectTasks.filter(t => t.category === cat)),
+    ]
+    orderedVisibleTasksRef.current = ordered
 
+    let sectionStart = 0
     return (
       <>
         {isEmpty ? (
@@ -375,12 +533,15 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
           </p>
         ) : (
           <>
-            {renderSection('Meetings', meetings, true)}
-            {renderRecurrentSection(recurrent, true)}
-            {renderSection('Tasks', regularTasks, true)}
-            {projectCategories.map(cat =>
-              renderSection(cat, projectTasks.filter(t => t.category === cat), true)
-            )}
+            {renderSection('Meetings', meetings, true, sectionStart)}
+            {renderRecurrentSection(recurrent, true, sectionStart += meetings.length)}
+            {renderSection('Tasks', regularTasks, true, sectionStart += recurrentFlat.length)}
+            {projectCategories.map(cat => {
+              const catTasks = projectTasks.filter(t => t.category === cat)
+              const si = sectionStart
+              sectionStart += catTasks.length
+              return renderSection(cat, catTasks, true, si)
+            })}
           </>
         )}
       </>
