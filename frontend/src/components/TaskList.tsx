@@ -46,6 +46,15 @@ function classifyRecurrence(rule: string | null): string {
   return 'Other'
 }
 
+const TrashIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <line x1="10" y1="11" x2="10" y2="17" />
+    <line x1="14" y1="11" x2="14" y2="17" />
+  </svg>
+)
+
 const HOUR_HEIGHT = 60 // px per hour; 1px per minute
 const CALENDAR_TOTAL_HEIGHT = 24 * HOUR_HEIGHT // 1440px
 const DEFAULT_DURATION = 30 // minutes, fallback when duration_minutes is null
@@ -69,6 +78,17 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: !task.completed }),
       })
+      if (res.ok) {
+        onTasksUpdate()
+      }
+    } catch (err) {
+      // Ignore errors
+    }
+  }
+
+  async function handleDelete(task: Task) {
+    try {
+      const res = await fetch(`${API_URL}/tasks/${task.id}`, { method: 'DELETE' })
       if (res.ok) {
         onTasksUpdate()
       }
@@ -136,6 +156,14 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
             {showDate ? formatDateTime(task.scheduled_date) : formatTime(task.scheduled_date)}
           </span>
         )}
+        <button
+          type="button"
+          className="task-delete-btn"
+          aria-label="Delete task"
+          onClick={(e) => { e.stopPropagation(); handleDelete(task) }}
+        >
+          <TrashIcon />
+        </button>
       </li>
     )
   }
@@ -265,6 +293,14 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
                   />
                   <span className="calendar-task-key">{task.task_key}</span>
                   <span className="calendar-task-title">{task.title}</span>
+                  <button
+                    type="button"
+                    className="task-delete-btn"
+                    aria-label="Delete task"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(task) }}
+                  >
+                    <TrashIcon />
+                  </button>
                 </div>
               )
             })}
