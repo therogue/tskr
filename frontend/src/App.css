@@ -44,6 +44,68 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+}
+
+/* Delete confirmation - small popup at mouse click */
+.confirm-popup {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  padding: 0.6rem 0.85rem;
+  background: #152238;
+  border: 1px solid #2a3f5f;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.confirm-popup .confirm-message {
+  margin: 0 0 0.5rem 0;
+  color: #e8e8e8;
+  font-size: 0.85rem;
+}
+
+.confirm-popup .confirm-actions {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.confirm-message {
+  color: #e8e8e8;
+}
+
+.confirm-actions {
+  flex-shrink: 0;
+}
+
+.confirm-cancel-btn {
+  padding: 0.3rem 0.65rem;
+  background: transparent;
+  color: #a0b0c0;
+  border: 1px solid #3a4f6f;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.confirm-cancel-btn:hover {
+  background: #253545;
+  color: #e8e8e8;
+}
+
+.confirm-delete-btn {
+  padding: 0.3rem 0.65rem;
+  background: #e74c3c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.confirm-delete-btn:hover {
+  background: #c0392b;
 }
 
 /* Tab Bar */
