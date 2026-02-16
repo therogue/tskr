@@ -83,6 +83,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const lastClickedIndexRef = useRef<number | null>(null)
   const orderedVisibleTasksRef = useRef<Task[]>([])
+  const [confirmDelete, setConfirmDelete] = useState<{ message: string; ids: string[]; x: number; y: number } | null>(null)
 
   // Auto-scroll calendar to ~8am when switching to calendar view
   useEffect(() => {
@@ -106,27 +107,39 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     }
   }
 
-  async function handleDelete(task: Task) {
-    try {
-      const res = await fetch(`${API_URL}/tasks/${task.id}`, { method: 'DELETE' })
-      if (res.ok) {
-        onTasksUpdate()
-      }
-    } catch (err) {
-      // Ignore errors
-    }
+  function handleDelete(task: Task, e: React.MouseEvent) {
+    setConfirmDelete({
+      message: 'Are you sure you want to delete this task?',
+      ids: [task.id],
+      x: e.clientX,
+      y: e.clientY,
+    })
   }
 
-  async function handleDeleteSelected() {
+  function handleDeleteSelected(e: React.MouseEvent) {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
+    const count = ids.length
+    const message = count === 1
+      ? 'Are you sure you want to delete this task?'
+      : `Are you sure you want to delete ${count} tasks?`
+    setConfirmDelete({ message, ids, x: e.clientX, y: e.clientY })
+  }
+
+  async function confirmDeleteAction(ids: string[]) {
+    if (!confirmDelete) return
     try {
       await Promise.all(ids.map(id => fetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' })))
-      setSelectedIds(new Set())
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        ids.forEach(id => next.delete(id))
+        return next
+      })
       onTasksUpdate()
     } catch (err) {
       // Ignore errors
     }
+    setConfirmDelete(null)
   }
 
   function handleSelectBoxClick(task: Task, indexInOrdered: number, e: React.MouseEvent) {
@@ -236,7 +249,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
           type="button"
           className="task-delete-btn"
           aria-label="Delete task"
-          onClick={(e) => { e.stopPropagation(); handleDelete(task) }}
+          onClick={(e) => { e.stopPropagation(); handleDelete(task, e) }}
         >
           <TrashIcon />
         </button>
@@ -391,7 +404,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
                     type="button"
                     className="task-delete-btn"
                     aria-label="Delete task"
-                    onClick={(e) => { e.stopPropagation(); handleDelete(task) }}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(task, e) }}
                   >
                     <TrashIcon />
                   </button>
@@ -449,11 +462,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
             >Calendar</button>
           </div>
           {selectedIds.size > 0 && (
-            <button
-              type="button"
-              className="delete-selected-btn"
-              onClick={handleDeleteSelected}
-            >
+            <button type="button" className="delete-selected-btn" onClick={handleDeleteSelected}>
               <TrashIcon /> Delete
             </button>
           )}
@@ -570,6 +579,23 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
           Completed
         </button>
       </div>
+
+      {confirmDelete && (
+        <div
+          className="confirm-popup"
+          style={{
+            left: confirmDelete.x,
+            top: Math.max(8, Math.min(confirmDelete.y, window.innerHeight - 100)),
+            transform: 'translateX(-100%)',
+          }}
+        >
+          <p className="confirm-message">{confirmDelete.message}</p>
+          <div className="confirm-actions">
+            <button type="button" className="confirm-cancel-btn" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button type="button" className="confirm-delete-btn" onClick={() => confirmDeleteAction(confirmDelete.ids)}>Delete</button>
+          </div>
+        </div>
+      )}
 
       <div className="tab-content">
         {viewMode === 'day' && renderDayView()}
