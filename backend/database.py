@@ -576,7 +576,7 @@ def save_conversation(messages: list[dict], conversation_id: int):
                     "UPDATE conversations SET messages = ?, updated_at = ? WHERE id = ?",
                     (messages_json, now, conversation_id)
                 )
-        conn.commit()
+            conn.commit()
 
 def new_conversation() -> int:
     """Create a new empty conversation and return its id."""
