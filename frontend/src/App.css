@@ -483,11 +483,39 @@ body {
   flex-direction: column;
 }
 
-.chat-panel h2 {
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.5rem;
+  border-bottom: 1px solid #2a3f5f;
+}
+
+.chat-header h2 {
   font-size: 1.1rem;
   color: #a0b0c0;
-  border-bottom: 1px solid #2a3f5f;
+  margin: 0;
+}
+
+.new-chat-btn {
+  padding: 0.25rem 0.6rem;
+  background: #2a3f5f;
+  color: #a0b0c0;
+  border: 1px solid #3a4f6f;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.new-chat-btn:hover {
+  background: #3a4f6f;
+  color: #e8e8e8;
+}
+
+.new-chat-btn:disabled {
+  background: #1b2838;
+  color: #607080;
+  cursor: not-allowed;
 }
 
 .chat-messages {
