@@ -546,28 +546,45 @@ def find_task_by_key_db(task_key: str) -> Optional[Task]:
     return None
 
 # Conversation operations
-def get_conversation() -> list[dict]:
-    """Get the current conversation messages."""
+def get_conversation() -> dict:
+    """Get the most recent conversation by updated_at. Returns {"id": int, "messages": list}."""
     with get_db() as conn:
-        row = conn.execute("SELECT messages FROM conversations WHERE id = 1").fetchone()
+        row = conn.execute(
+            "SELECT id, messages FROM conversations ORDER BY updated_at DESC LIMIT 1"
+        ).fetchone()
         if row:
-            return json.loads(row["messages"])
-        return []
+            return {"id": row["id"], "messages": json.loads(row["messages"])}
+        return {"id": None, "messages": []}
 
-def save_conversation(messages: list[dict]):
-    """Save conversation messages."""
+def save_conversation(messages: list[dict], conversation_id: int):
+    """Save conversation messages for the given conversation_id."""
     now = datetime.now().isoformat()
     messages_json = json.dumps(messages)
+    # Auto-title: set title from first user message if still 'Untitled'
+    first_user = next((m["content"] for m in messages if m.get("role") == "user"), None)
     with get_db() as conn:
-        existing = conn.execute("SELECT id FROM conversations WHERE id = 1").fetchone()
-        if existing:
-            conn.execute(
-                "UPDATE conversations SET messages = ?, updated_at = ? WHERE id = 1",
-                (messages_json, now)
-            )
-        else:
-            conn.execute(
-                "INSERT INTO conversations (id, messages, created_at, updated_at) VALUES (1, ?, ?, ?)",
-                (messages_json, now, now)
-            )
+        row = conn.execute("SELECT title FROM conversations WHERE id = ?", (conversation_id,)).fetchone()
+        if row:
+            if row["title"] == "Untitled" and first_user:
+                title = first_user[:50]
+                conn.execute(
+                    "UPDATE conversations SET messages = ?, updated_at = ?, title = ? WHERE id = ?",
+                    (messages_json, now, title, conversation_id)
+                )
+            else:
+                conn.execute(
+                    "UPDATE conversations SET messages = ?, updated_at = ? WHERE id = ?",
+                    (messages_json, now, conversation_id)
+                )
+            conn.commit()
+
+def new_conversation() -> int:
+    """Create a new empty conversation and return its id."""
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        cursor = conn.execute(
+            "INSERT INTO conversations (messages, title, created_at, updated_at) VALUES ('[]', 'Untitled', ?, ?)",
+            (now, now)
+        )
         conn.commit()
+        return cursor.lastrowid
