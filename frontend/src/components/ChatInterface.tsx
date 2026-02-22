@@ -13,17 +13,21 @@ const API_URL = 'http://localhost:8000'
 
 function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Load saved conversation on mount
+  // Load most recent conversation on mount
   useEffect(() => {
     fetch(`${API_URL}/conversation`)
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setMessages(data)
+        if (data.id != null) {
+          setActiveConversationId(data.id)
+        }
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
+          setMessages(data.messages)
         }
       })
       .catch(() => {
@@ -35,6 +39,18 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  async function handleNewChat() {
+    if (loading) return
+    try {
+      const res = await fetch(`${API_URL}/conversation/new`, { method: 'POST' })
+      const data = await res.json()
+      setMessages([])
+      setActiveConversationId(data.id)
+    } catch {
+      // Ignore errors
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -50,7 +66,7 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
       const res = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, conversation_id: activeConversationId }),
       })
       const data = await res.json()
 
@@ -68,7 +84,17 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
 
   return (
     <div className="chat-panel">
-      <h2>Chat</h2>
+      <div className="chat-header">
+        <h2>Chat</h2>
+        <button
+          className="new-chat-btn"
+          onClick={handleNewChat}
+          disabled={loading}
+          title="Start a new conversation"
+        >
+          New Chat
+        </button>
+      </div>
       <div className="chat-messages">
         {messages.map((msg, i) => (
           <div key={i} className={`message ${msg.role}`}>

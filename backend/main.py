@@ -20,7 +20,8 @@ from database import (
     find_task_by_title_db,
     find_task_by_key_db,
     get_conversation,
-    save_conversation
+    save_conversation,
+    new_conversation
 )
 
 load_dotenv()
@@ -77,9 +78,16 @@ def delete_task(task_id: str) -> dict:
 
 
 @app.get("/conversation")
-def get_conversation_endpoint() -> list[dict]:
-    """Get saved conversation history."""
+def get_conversation_endpoint() -> dict:
+    """Get the most recent conversation as {id, messages}."""
     return get_conversation()
+
+
+@app.post("/conversation/new")
+def new_conversation_endpoint() -> dict:
+    """Archive current conversation and start a new one."""
+    conv_id = new_conversation()
+    return {"id": conv_id}
 
 
 def find_task(title: str = None, task_key: str = None) -> Task | None:
@@ -215,7 +223,8 @@ async def chat(chat_request: ChatRequest) -> dict:
     # Save conversation with assistant response
     conversation = [{"role": m.role, "content": m.content} for m in chat_request.messages]
     conversation.append({"role": "assistant", "content": message})
-    save_conversation(conversation)
+    if chat_request.conversation_id is not None:
+        save_conversation(conversation, chat_request.conversation_id)
 
     return {"response": message, "tasks": get_all_tasks()}
 
