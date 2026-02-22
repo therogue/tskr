@@ -16,6 +16,7 @@ interface Task {
   is_template: boolean
   parent_task_id: string | null
   duration_minutes: number | null
+  priority: number | null  // 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
   projected?: boolean
 }
 

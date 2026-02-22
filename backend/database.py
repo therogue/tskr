@@ -115,6 +115,7 @@ def _row_to_task(row) -> Task:
         is_template=bool(row["is_template"]) if "is_template" in keys else False,
         parent_task_id=row["parent_task_id"] if "parent_task_id" in keys else None,
         duration_minutes=row["duration_minutes"] if "duration_minutes" in keys else None,
+        priority=row["priority"] if "priority" in keys else None,
     )
 
 
@@ -323,7 +324,8 @@ def _create_instance_from_template(template: Task, target_date: str) -> Task:
         recurrence_rule=template.recurrence_rule,  # Copy for display
         is_template=False,
         parent_task_id=template.id,
-        duration_minutes=template.duration_minutes
+        duration_minutes=template.duration_minutes,
+        priority=template.priority
     )
 
 
@@ -425,10 +427,12 @@ def create_task_db(
     recurrence_rule: Optional[str] = None,
     is_template: bool = False,
     parent_task_id: Optional[str] = None,
-    duration_minutes: Optional[int] = None
+    duration_minutes: Optional[int] = None,
+    priority: Optional[int] = None
 ) -> Task:
     """Create a task with auto-generated task_key.
     duration_minutes defaults to 15 if not provided.
+    priority: 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
     scheduled_date can be YYYY-MM-DD or YYYY-MM-DDTHH:MM format.
     If is_template=True, creates a recurring template with R- prefix key.
     If parent_task_id is set, this is an instance created from a template.
@@ -450,9 +454,9 @@ def create_task_db(
     with get_db() as conn:
         conn.execute(
             """INSERT INTO tasks
-               (id, task_key, category, task_number, title, completed, scheduled_date, recurrence_rule, created_at, is_template, parent_task_id, duration_minutes)
-               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)""",
-            (task_id, task_key, category, task_number, title, scheduled_date, recurrence_rule, created_at, int(is_template), parent_task_id, duration_minutes)
+               (id, task_key, category, task_number, title, completed, scheduled_date, recurrence_rule, created_at, is_template, parent_task_id, duration_minutes, priority)
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)""",
+            (task_id, task_key, category, task_number, title, scheduled_date, recurrence_rule, created_at, int(is_template), parent_task_id, duration_minutes, priority)
         )
         conn.commit()
 
@@ -469,6 +473,7 @@ def create_task_db(
         is_template=is_template,
         parent_task_id=parent_task_id,
         duration_minutes=duration_minutes,
+        priority=priority,
     )
 
 def update_task_db(task_id: str, **updates) -> Optional[Task]:

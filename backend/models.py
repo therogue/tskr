@@ -14,6 +14,7 @@ class Task(BaseModel):
     is_template: bool = False
     parent_task_id: Optional[str] = None
     duration_minutes: Optional[int] = None  # Estimated task duration in minutes
+    priority: Optional[int] = None  # 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
     projected: bool = False  # True for recurring task projections in day view
 
 class TaskCreate(BaseModel):
@@ -22,6 +23,7 @@ class TaskCreate(BaseModel):
     scheduled_date: Optional[str] = None  # ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM
     recurrence_rule: Optional[str] = None
     duration_minutes: Optional[int] = None
+    priority: Optional[int] = None  # 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
     is_template: bool = False
 
 class TaskUpdate(BaseModel):
@@ -30,6 +32,7 @@ class TaskUpdate(BaseModel):
     scheduled_date: Optional[str] = None  # ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM
     recurrence_rule: Optional[str] = None
     duration_minutes: Optional[int] = None
+    priority: Optional[int] = None  # 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
 
 class Message(BaseModel):
     role: str  # "user" or "assistant"

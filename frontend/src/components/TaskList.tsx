@@ -13,6 +13,7 @@ interface Task {
   is_template: boolean
   parent_task_id: string | null
   duration_minutes: number | null
+  priority: number | null  // 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
   projected?: boolean
 }
 
@@ -71,6 +72,23 @@ const TrashIcon = () => (
     <line x1="14" y1="11" x2="14" y2="17" />
   </svg>
 )
+
+// Priority badge: maps priority int to label and CSS class
+// Assumption: priority is 0-4 or null
+const PRIORITY_CONFIG: Record<number, { label: string; className: string }> = {
+  4: { label: 'C', className: 'priority-critical' },
+  3: { label: 'H', className: 'priority-high' },
+  2: { label: 'M', className: 'priority-medium' },
+  1: { label: 'L', className: 'priority-low' },
+  0: { label: '-', className: 'priority-none' },
+}
+
+function PriorityBadge({ priority }: { priority: number | null }) {
+  if (priority === null || priority === undefined) return null
+  const config = PRIORITY_CONFIG[priority]
+  if (!config) return null
+  return <span className={`priority-badge ${config.className}`}>{config.label}</span>
+}
 
 const HOUR_HEIGHT = 60 // px per hour; 1px per minute
 const CALENDAR_TOTAL_HEIGHT = 24 * HOUR_HEIGHT // 1440px
@@ -236,6 +254,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
           onClick={(e) => e.stopPropagation()}
         />
         <span className="task-key">{task.task_key}</span>
+        <PriorityBadge priority={task.priority} />
         <span className="task-title">{task.title}</span>
         {task.recurrence_rule && (
           <span className="task-recurring" title={`Repeats: ${task.recurrence_rule}`}>&#x21bb;</span>
@@ -399,6 +418,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
                     onClick={(e) => e.stopPropagation()}
                   />
                   <span className="calendar-task-key">{task.task_key}</span>
+                  <PriorityBadge priority={task.priority} />
                   <span className="calendar-task-title">{task.title}</span>
                   <button
                     type="button"

@@ -117,6 +117,7 @@ def execute_operation(parsed: dict, today: str) -> str:
     scheduled_date = parsed.get("scheduled_date")
     recurrence_rule = parsed.get("recurrence_rule")
     duration_minutes = parsed.get("duration_minutes")
+    priority = parsed.get("priority")
     message = parsed.get("message", "Done")
 
     # Create doesn't need task lookup
@@ -131,7 +132,8 @@ def execute_operation(parsed: dict, today: str) -> str:
             effective_date,
             recurrence_rule,
             is_template=is_template,
-            duration_minutes=duration_minutes
+            duration_minutes=duration_minutes,
+            priority=priority
         )
         return message
 
@@ -157,6 +159,8 @@ def execute_operation(parsed: dict, today: str) -> str:
             updates["completed"] = completed
         if duration_minutes is not None and duration_minutes != task.duration_minutes:
             updates["duration_minutes"] = duration_minutes
+        if priority is not None and priority != task.priority:
+            updates["priority"] = priority
 
         # Apply updates if any
         if updates:

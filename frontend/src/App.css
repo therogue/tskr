@@ -475,6 +475,44 @@ body {
   flex: 1;
 }
 
+/* Priority Badge */
+.priority-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.priority-critical {
+  background: rgba(231, 76, 60, 0.25);
+  color: #e74c3c;
+}
+
+.priority-high {
+  background: rgba(230, 126, 34, 0.25);
+  color: #e67e22;
+}
+
+.priority-medium {
+  background: rgba(241, 196, 15, 0.25);
+  color: #f1c40f;
+}
+
+.priority-low {
+  background: rgba(39, 174, 96, 0.25);
+  color: #27ae60;
+}
+
+.priority-none {
+  background: rgba(127, 140, 141, 0.2);
+  color: #7f8c8d;
+}
+
 /* Chat Panel */
 .chat-panel {
   flex: 1;
