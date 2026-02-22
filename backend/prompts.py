@@ -56,6 +56,13 @@ Priority estimation:
 - Otherwise, estimate based on the task description and context.
 - Default to 2 (Medium) if truly uncertain.
 
+Auto-scheduling (for tasks created for today without a specific time):
+- After estimating duration, if the task is for today and the user has not specified a time, assign a start time.
+- Use "Today's schedule" and "Available business-hours gaps" provided below to avoid conflicts.
+- Find the first available gap large enough for the estimated duration.
+- If no gap fits within business hours, set scheduled_date to today's date only (YYYY-MM-DD, no time) — the task will appear as unscheduled.
+- Otherwise, set scheduled_date to YYYY-MM-DDTHH:MM with the chosen start time.
+
 Respond with this exact JSON format:
 {{
     "operation": "create" | "update" | "delete",

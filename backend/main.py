@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from models import Task, TaskUpdate, ChatRequest
 from prompts import SYSTEM_PROMPT
+from scheduling import build_schedule_context
 from database import (
     init_db,
     get_all_tasks,
@@ -219,6 +220,12 @@ async def chat(chat_request: ChatRequest) -> dict:
     if tasks:
         task_list = "\n".join([f"- {task.task_key}: {task.title}" for task in tasks if not task.completed])
         system_prompt += f"\n\nCurrent incomplete tasks:\n{task_list}"
+
+    # Add today's schedule context for auto-scheduling
+    today_tasks = get_tasks_for_date(today, today)
+    schedule_context = build_schedule_context(today_tasks)
+    if schedule_context:
+        system_prompt += schedule_context
 
     # Call Claude API
     try:
