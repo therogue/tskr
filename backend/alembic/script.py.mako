@@ -8,7 +8,7 @@ Create Date: ${create_date}
 from typing import Sequence, Union
 
 from alembic import op
-import sqlite3
+import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = ${repr(up_revision)}

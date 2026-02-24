@@ -1,43 +1,55 @@
-from pydantic import BaseModel
 from typing import Optional
+from sqlmodel import SQLModel, Field
 
-class Task(BaseModel):
-    id: str
+
+# --- Table models (ORM + Pydantic) ---
+
+class Task(SQLModel, table=True):
+    __tablename__ = "tasks"
+    id: str = Field(primary_key=True)
     task_key: str
     category: str
     task_number: int
     title: str
     completed: bool = False
-    scheduled_date: Optional[str] = None  # ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM
+    scheduled_date: Optional[str] = None     # YYYY-MM-DD or YYYY-MM-DDTHH:MM
     recurrence_rule: Optional[str] = None
-    created_at: str  # ISO format datetime string
+    created_at: str = ""                     # ISO datetime, set by create_task_db
     is_template: bool = False
     parent_task_id: Optional[str] = None
-    duration_minutes: Optional[int] = None  # Estimated task duration in minutes
-    priority: Optional[int] = None  # 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
-    projected: bool = False  # True for recurring task projections in day view
-
-class TaskCreate(BaseModel):
-    title: str
-    category: str = "T"
-    scheduled_date: Optional[str] = None  # ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM
-    recurrence_rule: Optional[str] = None
     duration_minutes: Optional[int] = None
-    priority: Optional[int] = None  # 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
-    is_template: bool = False
+    priority: Optional[int] = None           # 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
 
-class TaskUpdate(BaseModel):
+
+class CategorySequence(SQLModel, table=True):
+    __tablename__ = "category_sequences"
+    category: str = Field(primary_key=True)
+    next_number: int
+
+
+class Conversation(SQLModel, table=True):
+    __tablename__ = "conversations"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    messages: str = "[]"                     # JSON-encoded list of message dicts
+    title: str = "Untitled"
+    created_at: str = ""                     # ISO datetime
+    updated_at: str = ""                     # ISO datetime
+
+
+# --- Non-table schemas (API request/response only) ---
+
+class TaskUpdate(SQLModel):
     title: Optional[str] = None
     completed: Optional[bool] = None
-    scheduled_date: Optional[str] = None  # ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM
+    scheduled_date: Optional[str] = None
     recurrence_rule: Optional[str] = None
     duration_minutes: Optional[int] = None
-    priority: Optional[int] = None  # 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
+    priority: Optional[int] = None
 
-class Message(BaseModel):
-    role: str  # "user" or "assistant"
+class Message(SQLModel):
+    role: str
     content: str
 
-class ChatRequest(BaseModel):
+class ChatRequest(SQLModel):
     messages: list[Message]
     conversation_id: int | None = None

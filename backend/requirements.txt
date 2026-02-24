@@ -5,6 +5,7 @@ anthropic
 pydantic
 alembic
 sqlalchemy
+sqlmodel
 pytest
 pytest-asyncio
 httpx

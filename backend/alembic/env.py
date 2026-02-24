@@ -1,6 +1,10 @@
 from logging.config import fileConfig
 from sqlalchemy import create_engine
+from sqlmodel import SQLModel
 from alembic import context
+
+# Import models so SQLModel.metadata is populated
+from models import Task, CategorySequence, Conversation  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
@@ -8,13 +12,14 @@ if config.config_file_name is not None:
 
 # Database URL from alembic.ini
 db_url = config.get_main_option("sqlalchemy.url")
+target_metadata = SQLModel.metadata
 
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
     context.configure(
         url=db_url,
-        target_metadata=None,
+        target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -30,7 +35,7 @@ def run_migrations_online() -> None:
     with engine.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=None,
+            target_metadata=target_metadata,
             render_as_batch=True,
         )
 

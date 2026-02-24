@@ -3,13 +3,16 @@ Tests for FastAPI endpoints in main.py.
 Does not test /chat endpoint (requires mocking Claude API).
 Uses create_task_db to set up test data since POST /tasks was removed.
 """
-import pytest
 import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlmodel import Session
+
 from database import create_task_db
+import database
+from models import Task
 
 
 class TestTaskEndpoints:
@@ -93,14 +96,12 @@ class TestTemplateInstanceBehavior:
 
     def test_instance_completes_normally(self, test_db, app_client):
         """Instances (non-templates) complete normally without date advancement."""
-        # Create an instance (not a template) - has recurrence_rule for display but is_template=False
         create_task_db("id-1", "Daily task instance", "D", "2025-01-20", "daily", is_template=False)
 
         response = app_client.patch("/tasks/id-1", json={
             "completed": True
         })
 
-        # Should mark complete (no date advancement for instances)
         assert response.status_code == 200
         data = response.json()
         assert data["completed"] is True
@@ -116,27 +117,27 @@ class TestTemplateInstanceBehavior:
 
     def test_get_tasks_for_date_creates_instance(self, test_db, app_client):
         """Day view for today creates instance from matching template."""
-        # Create a daily template with created_at before the query date
-        import sqlite3
-        import database
-        conn = sqlite3.connect(database.DATABASE_PATH)
-        conn.execute("""
-            INSERT INTO tasks (id, task_key, category, task_number, title, completed,
-                               scheduled_date, recurrence_rule, created_at, is_template, parent_task_id)
-            VALUES ('tpl-1', 'R-D-01', 'D', 1, 'Daily standup', 0,
-                    '2025-01-20', 'daily', '2025-01-20T10:00:00', 1, NULL)
-        """)
-        conn.commit()
-        conn.close()
+        # Insert template via ORM with specific created_at
+        with Session(database.engine) as session:
+            session.add(Task(
+                id="tpl-1",
+                task_key="R-D-01",
+                category="D",
+                task_number=1,
+                title="Daily standup",
+                completed=False,
+                scheduled_date="2025-01-20",
+                recurrence_rule="daily",
+                created_at="2025-01-20T10:00:00",
+                is_template=True,
+                parent_task_id=None,
+            ))
+            session.commit()
 
         # Get tasks for 2025-01-21 (pattern matches, after created_at)
         response = app_client.get("/tasks/for-date?date=2025-01-21")
         assert response.status_code == 200
         tasks = response.json()
 
-        # Should have created an instance (not projected since we're simulating "today")
-        # Note: This test depends on backend treating 2025-01-21 as "today"
-        # The instance creation only happens when target_date == today
-        # For this test, the task will be projected since 2025-01-21 is not today
         assert len(tasks) == 1
         assert tasks[0]["title"] == "Daily standup"

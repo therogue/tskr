@@ -14,7 +14,6 @@ interface Task {
   parent_task_id: string | null
   duration_minutes: number | null
   priority: number | null  // 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
-  projected?: boolean
 }
 
 type ViewMode = 'day' | 'all' | 'completed'
@@ -245,13 +244,13 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     const classes = [
       'task-item',
       task.completed ? 'completed' : '',
-      task.projected ? 'projected' : '',
+      task.is_template ? 'projected' : '',
       isSelected ? 'selected' : ''
     ].filter(Boolean).join(' ')
 
     return (
       <li
-        key={task.id + (task.projected ? '-projected' : '')}
+        key={task.id + (task.is_template ? '-template' : '')}
         className={classes}
         onMouseDown={(e) => e.shiftKey && e.preventDefault()}
         onClick={(e) => handleSelectBoxClick(task, indexInOrdered, e)}
@@ -411,13 +410,13 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
               const classes = [
                 'calendar-task-block',
                 task.completed ? 'completed' : '',
-                task.projected ? 'projected' : '',
+                task.is_template ? 'projected' : '',
                 isSelected ? 'selected' : ''
               ].filter(Boolean).join(' ')
 
               return (
                 <div
-                  key={task.id + (task.projected ? '-projected' : '')}
+                  key={task.id + (task.is_template ? '-template' : '')}
                   className={classes}
                   style={{ top: topPx, height: Math.max(heightPx, 16) }}
                   onMouseDown={(e) => e.shiftKey && e.preventDefault()}
