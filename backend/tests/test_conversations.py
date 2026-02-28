@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import (
     new_conversation,
     save_conversation,
-    get_conversation,
     get_conversation_by_id,
     list_conversations,
 )
@@ -181,3 +180,57 @@ class TestConversationsAPI:
         res = app_client.get("/conversations?limit=2")
         ids = [item["id"] for item in res.json()]
         assert ids[0] == id1
+
+
+class TestAppOpenFreshConversation:
+    """
+    Tests for the app-open behaviour: POST /conversation/new is called on mount,
+    clearing the chat window and starting a fresh conversation while preserving
+    the previous conversation in history.
+    """
+
+    def test_app_open_returns_new_conversation_id(self, app_client):
+        """POST /conversation/new returns a new id (simulates app mount)."""
+        res = app_client.post("/conversation/new")
+        assert res.status_code == 200
+        assert "id" in res.json()
+        assert res.json()["id"] is not None
+
+    def test_app_open_new_conversation_has_no_messages(self, app_client):
+        """New conversation starts empty — chat window shows no messages."""
+        new_id = app_client.post("/conversation/new").json()["id"]
+        res = app_client.get(f"/conversations/{new_id}")
+        assert res.status_code == 200
+        assert res.json()["messages"] == []
+
+    def test_app_open_creates_distinct_conversation(self, app_client):
+        """Each app open produces a different conversation id."""
+        id1 = app_client.post("/conversation/new").json()["id"]
+        id2 = app_client.post("/conversation/new").json()["id"]
+        assert id1 != id2
+
+    def test_previous_conversation_preserved_in_history(self, app_client):
+        """Previous conversation with messages appears in GET /conversations after app open."""
+        import database
+
+        old_id = app_client.post("/conversation/new").json()["id"]
+        database.save_conversation([{"role": "user", "content": "yesterday's task"}], old_id)
+
+        # Simulate reopening the app
+        app_client.post("/conversation/new")
+
+        history_ids = [c["id"] for c in app_client.get("/conversations").json()]
+        assert old_id in history_ids
+
+    def test_previous_conversation_messages_intact_after_app_open(self, app_client):
+        """Previous conversation messages are retrievable by id after app open."""
+        import database
+
+        old_id = app_client.post("/conversation/new").json()["id"]
+        database.save_conversation([{"role": "user", "content": "keep this"}], old_id)
+
+        app_client.post("/conversation/new")
+
+        res = app_client.get(f"/conversations/{old_id}")
+        assert res.status_code == 200
+        assert res.json()["messages"][0]["content"] == "keep this"

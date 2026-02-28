@@ -33,17 +33,12 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
   const historyBtnRef = useRef<HTMLButtonElement>(null)
   const historyPopupRef = useRef<HTMLDivElement>(null)
 
-  // Load most recent conversation on mount
+  // Start a fresh conversation on mount (previous conversation preserved in history)
   useEffect(() => {
-    fetch(`${API_URL}/conversation`)
+    fetch(`${API_URL}/conversation/new`, { method: 'POST' })
       .then((res) => res.json())
       .then((data) => {
-        if (data.id != null) {
-          setActiveConversationId(data.id)
-        }
-        if (Array.isArray(data.messages) && data.messages.length > 0) {
-          setMessages(data.messages)
-        }
+        setActiveConversationId(data.id)
       })
       .catch(() => {})
   }, [])
