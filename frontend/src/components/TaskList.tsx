@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { computeColumnLayout, DEFAULT_DURATION } from '../utils/calendarLayout'
 
 interface Task {
   id: string
@@ -101,8 +102,10 @@ function formatDuration(minutes: number | null): string | null {
 
 const HOUR_HEIGHT = 60 // px per hour; 1px per minute
 const CALENDAR_TOTAL_HEIGHT = 24 * HOUR_HEIGHT // 1440px
-const DEFAULT_DURATION = 30 // minutes, fallback when duration_minutes is null
 const SCROLL_TO_HOUR = 8 // auto-scroll to 8am on mount
+// Pixel offsets matching .calendar-hour-label width and .calendar-task-block right
+const LABEL_WIDTH = 55 // px
+const RIGHT_PAD = 8   // px
 
 function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, onDateChange, onTasksUpdate }: TaskListProps) {
   const [dayViewMode, setDayViewMode] = useState<DayViewMode>('list')
@@ -367,6 +370,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
       (a, b) => (a.scheduled_date! < b.scheduled_date! ? -1 : 1)
     )
     const untimedTasks = tasks.filter(t => !t.scheduled_date || !t.scheduled_date.includes('T'))
+    const layouts = computeColumnLayout(timedTasks)
     const ordered: Task[] = [...untimedTasks, ...timedTasks]
     orderedVisibleTasksRef.current = ordered
 
@@ -414,11 +418,20 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
                 isSelected ? 'selected' : ''
               ].filter(Boolean).join(' ')
 
+              const { colIndex, colCount } = layouts[i]
+              // When overlapping, divide horizontal space into columns.
+              // LABEL_WIDTH + RIGHT_PAD (63px total) match CSS .calendar-hour-label and right: 8px
+              const overlapStyle = colCount > 1 ? {
+                left: `calc(${LABEL_WIDTH}px + ${colIndex} * (100% - ${LABEL_WIDTH + RIGHT_PAD}px) / ${colCount})`,
+                right: 'auto',
+                width: `calc((100% - ${LABEL_WIDTH + RIGHT_PAD}px) / ${colCount})`,
+              } : {}
+
               return (
                 <div
                   key={task.id + (task.is_template ? '-template' : '')}
                   className={classes}
-                  style={{ top: topPx, height: Math.max(heightPx, 16) }}
+                  style={{ top: topPx, height: Math.max(heightPx, 16), ...overlapStyle }}
                   onMouseDown={(e) => e.shiftKey && e.preventDefault()}
                   onClick={(e) => handleSelectBoxClick(task, indexInOrdered, e)}
                 >
