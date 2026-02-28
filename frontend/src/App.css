@@ -27,6 +27,14 @@ body {
 .header h1 {
   font-size: 1.5rem;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-logo {
+  height: 2rem;
+  width: auto;
 }
 
 .main {
