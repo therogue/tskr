@@ -319,8 +319,8 @@ def get_tasks_for_date(target_date: str, today: str) -> list[Task]:
             continue
 
         # For today only: include incomplete non-recurrent tasks with past scheduled_date (overdue)
-        # Recurrent instances (parent_task_id set) are excluded — each day gets its own instance
-        if is_today and scheduled_date_only and scheduled_date_only < today and not task.completed and not task.parent_task_id:
+        # Excluded: recurrent instances (each day gets its own) and meetings (time-bound events)
+        if is_today and scheduled_date_only and scheduled_date_only < today and not task.completed and not task.parent_task_id and task.category != "M":
             result.append(task)
             continue
 

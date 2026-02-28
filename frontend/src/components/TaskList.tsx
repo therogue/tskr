@@ -123,15 +123,20 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
   }, [dayViewMode, selectedDate])
 
   async function handleToggle(task: Task) {
+    const newCompleted = !task.completed
     try {
-      const res = await fetch(`${API_URL}/tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !task.completed }),
-      })
-      if (res.ok) {
-        onTasksUpdate()
-      }
+      // If task is part of a multi-selection, apply to all selected
+      const ids = selectedIds.has(task.id) && selectedIds.size > 1
+        ? Array.from(selectedIds)
+        : [task.id]
+      await Promise.all(ids.map(id =>
+        fetch(`${API_URL}/tasks/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completed: newCompleted }),
+        })
+      ))
+      onTasksUpdate()
     } catch (err) {
       // Ignore errors
     }

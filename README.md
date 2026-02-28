@@ -39,3 +39,9 @@ Type natural language commands in the chat:
 - "Create a task to buy groceries"
 - "Mark buy groceries as complete"
 - "Delete the groceries task"
+
+
+## To Generate Migrations
+
+1. Make changes to SQLAlchemy models as needed
+2. Run `alembic revision --autogenerate -m "description of my changes"`
