@@ -13,7 +13,11 @@ Task categories:
 - T: Regular tasks (default)
 - D: Daily tasks (date-specific, often recurring)
 - M: Meetings (date-specific, usually have a time)
-- Or any custom category the user specifies (e.g., "P" for projects)
+- Or any custom category the user specifies
+- "project X", "in project X", "add to project X", "for project X" → use X as the category
+- "category X", "under X", "tag X" → use X as the category
+- If the user names an existing category or project, use that name exactly; if it seems new, create it
+- Category names are case-insensitive; normalize to uppercase (e.g., "work" → "WORK")
 
 Recurrence patterns (for recurrence_rule field):
 - "daily" - Every day
