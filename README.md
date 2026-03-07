@@ -41,7 +41,6 @@ Type natural language commands in the chat:
 - "Delete the groceries task"
 
 
-## To Generate Migrations
+## Contributing
 
-1. Make changes to SQLAlchemy models as needed
-2. Run `alembic revision --autogenerate -m "description of my changes"`
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup details, branch workflow, migrations, and testing.
