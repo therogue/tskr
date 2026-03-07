@@ -141,3 +141,50 @@ class TestTemplateInstanceBehavior:
 
         assert len(tasks) == 1
         assert tasks[0]["title"] == "Daily standup"
+
+
+class TestSettingsEndpoints:
+    """Tests for GET /settings and PATCH /settings."""
+
+    def test_get_settings_returns_defaults(self, app_client):
+        """GET /settings returns default values."""
+        response = app_client.get("/settings")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["default_category"] == "T"
+        assert data["default_priority"] == "medium"
+        assert data["conflict_resolution"] == "overlap"
+
+    def test_patch_settings_updates_all_fields(self, app_client):
+        """PATCH /settings updates all fields."""
+        response = app_client.patch("/settings", json={
+            "default_category": "M",
+            "default_priority": "high",
+            "conflict_resolution": "backlog",
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["default_category"] == "M"
+        assert data["default_priority"] == "high"
+        assert data["conflict_resolution"] == "backlog"
+
+    def test_patch_settings_partial_update(self, app_client):
+        """PATCH /settings partial payload only changes specified fields."""
+        app_client.patch("/settings", json={
+            "default_category": "D",
+            "default_priority": "low",
+            "conflict_resolution": "unschedule",
+        })
+        response = app_client.patch("/settings", json={"default_priority": "critical"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["default_category"] == "D"          # unchanged
+        assert data["default_priority"] == "critical"   # updated
+        assert data["conflict_resolution"] == "unschedule"  # unchanged
+
+    def test_patch_settings_persists_across_calls(self, app_client):
+        """Changes are visible in subsequent GET /settings."""
+        app_client.patch("/settings", json={"default_priority": "none"})
+        response = app_client.get("/settings")
+        assert response.status_code == 200
+        assert response.json()["default_priority"] == "none"

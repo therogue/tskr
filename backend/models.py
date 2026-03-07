@@ -46,6 +46,26 @@ class TaskUpdate(SQLModel):
     duration_minutes: Optional[int] = None
     priority: Optional[int] = None
 
+class UserSettings(SQLModel, table=True):
+    __tablename__ = "user_settings"
+    id: str = Field(default="default", primary_key=True)
+    default_category: str = "T"
+    default_priority: str = "medium"     # "none"|"low"|"medium"|"high"|"critical"
+    conflict_resolution: str = "overlap" # "overlap"|"unschedule"|"backlog"
+
+
+class UserSettingsRead(SQLModel):
+    default_category: str
+    default_priority: str
+    conflict_resolution: str
+
+
+class UserSettingsUpdate(SQLModel):
+    default_category: Optional[str] = None
+    default_priority: Optional[str] = None
+    conflict_resolution: Optional[str] = None
+
+
 class Message(SQLModel):
     role: str
     content: str

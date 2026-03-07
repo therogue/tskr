@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy import create_engine, case, func
 from sqlmodel import Session, select
 
-from models import Task, CategorySequence, Conversation
+from models import Task, CategorySequence, Conversation, UserSettings
 
 DATABASE_URL = "sqlite:///tskr.db"
 engine = create_engine(DATABASE_URL)
@@ -445,6 +445,47 @@ def find_task_by_key_db(task_key: str) -> Optional[Task]:
         if task:
             return task.model_copy()
     return None
+
+
+# User settings operations
+
+# Handles rows created before default_priority was changed from int to str
+_PRIORITY_INT_TO_NAME = {0: 'none', 1: 'low', 2: 'medium', 3: 'high', 4: 'critical'}
+
+
+def get_user_settings() -> UserSettings:
+    """Return the singleton user settings row, creating defaults if absent."""
+    with Session(engine) as session:
+        settings = session.get(UserSettings, "default")
+        if not settings:
+            settings = UserSettings()
+            session.add(settings)
+            session.commit()
+            session.refresh(settings)
+        elif isinstance(settings.default_priority, int) or (
+            isinstance(settings.default_priority, str) and settings.default_priority.isdigit()
+        ):
+            # Migrate legacy integer priority (int or digit string) to name
+            key = int(settings.default_priority)
+            settings.default_priority = _PRIORITY_INT_TO_NAME.get(key, 'medium')
+            session.commit()
+            session.refresh(settings)
+        return settings.model_copy()
+
+
+def update_user_settings(**kwargs) -> UserSettings:
+    """Update user settings fields and return updated settings."""
+    with Session(engine) as session:
+        settings = session.get(UserSettings, "default")
+        if not settings:
+            settings = UserSettings()
+            session.add(settings)
+        for field, value in kwargs.items():
+            if hasattr(settings, field):
+                setattr(settings, field, value)
+        session.commit()
+        session.refresh(settings)
+        return settings.model_copy()
 
 
 # Conversation operations

@@ -9,6 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlmodel import Session
 
+from sqlalchemy import text
+
 from database import (
     create_task_db,
     update_task_db,
@@ -22,6 +24,8 @@ from database import (
     get_conversation,
     save_conversation,
     new_conversation,
+    get_user_settings,
+    update_user_settings,
 )
 import database
 from models import Task
@@ -449,3 +453,44 @@ class TestConversation:
         result = get_conversation()
         assert result["id"] == conv_id
         assert len(result["messages"]) == 3
+
+
+class TestUserSettings:
+    """Tests for get_user_settings and update_user_settings."""
+
+    def test_get_user_settings_defaults(self, test_db):
+        """Returns defaults when no row exists."""
+        settings = get_user_settings()
+        assert settings.default_category == "T"
+        assert settings.default_priority == "medium"
+        assert settings.conflict_resolution == "overlap"
+
+    def test_get_user_settings_migrates_legacy_integer(self, test_db):
+        """Auto-migrates integer default_priority to string name."""
+        # Insert a row with integer priority (simulates old schema)
+        with Session(database.engine) as session:
+            session.exec(
+                text("INSERT INTO user_settings (id, default_category, default_priority, conflict_resolution) "
+                     "VALUES ('default', 'T', 3, 'overlap')")
+            )
+            session.commit()
+
+        settings = get_user_settings()
+        assert settings.default_priority == "high"
+
+    def test_update_user_settings_persists(self, test_db):
+        """update_user_settings persists all fields."""
+        update_user_settings(default_category="M", default_priority="low", conflict_resolution="backlog")
+        settings = get_user_settings()
+        assert settings.default_category == "M"
+        assert settings.default_priority == "low"
+        assert settings.conflict_resolution == "backlog"
+
+    def test_update_user_settings_partial(self, test_db):
+        """Partial update leaves other fields unchanged."""
+        update_user_settings(default_category="D", default_priority="high", conflict_resolution="unschedule")
+        update_user_settings(default_priority="none")
+        settings = get_user_settings()
+        assert settings.default_category == "D"          # unchanged
+        assert settings.default_priority == "none"       # updated
+        assert settings.conflict_resolution == "unschedule"  # unchanged
