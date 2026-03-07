@@ -8,7 +8,7 @@ import json
 import anthropic
 from dotenv import load_dotenv
 
-from models import Task, TaskUpdate, ChatRequest
+from models import Task, TaskUpdate, ChatRequest, UserSettingsRead, UserSettingsUpdate
 from prompts import SYSTEM_PROMPT
 from scheduling import build_schedule_context
 from database import (
@@ -25,6 +25,8 @@ from database import (
     new_conversation,
     list_conversations,
     get_conversation_by_id,
+    get_user_settings,
+    update_user_settings,
 )
 
 load_dotenv()
@@ -108,6 +110,55 @@ def get_conversation_by_id_endpoint(conversation_id: int) -> dict:
     return result
 
 
+@app.get("/settings")
+def get_settings() -> UserSettingsRead:
+    return get_user_settings()
+
+
+@app.patch("/settings")
+def patch_settings(data: UserSettingsUpdate) -> UserSettingsRead:
+    updates = data.model_dump(exclude_unset=True)
+    return update_user_settings(**updates)
+
+
+def _time_to_minutes(scheduled_date: str) -> int:
+    """Parse YYYY-MM-DDTHH:MM and return minutes since midnight."""
+    h, m = map(int, scheduled_date[11:16].split(':'))
+    return h * 60 + m
+
+
+def _resolve_conflicts(
+    new_scheduled_date: str,
+    new_duration_minutes: int,
+    exclude_task_id: str,
+    conflict_resolution: str,
+) -> None:
+    """Find tasks overlapping new_scheduled_date's time slot and apply conflict_resolution."""
+    if conflict_resolution == "overlap":
+        return
+    if not new_scheduled_date or 'T' not in new_scheduled_date:
+        return
+
+    new_date = new_scheduled_date[:10]
+    new_start = _time_to_minutes(new_scheduled_date)
+    new_end = new_start + new_duration_minutes
+
+    for task in get_all_tasks():
+        if task.id == exclude_task_id or task.completed or task.is_template:
+            continue
+        if not task.scheduled_date or 'T' not in task.scheduled_date:
+            continue
+        if task.scheduled_date[:10] != new_date:
+            continue
+        task_start = _time_to_minutes(task.scheduled_date)
+        task_end = task_start + (task.duration_minutes or 15)
+        if new_start < task_end and new_end > task_start:
+            if conflict_resolution == "unschedule":
+                update_task_db(task.id, scheduled_date=task.scheduled_date[:10])
+            elif conflict_resolution == "backlog":
+                update_task_db(task.id, scheduled_date=None)
+
+
 def find_task(title: str = None, task_key: str = None) -> Task | None:
     """Find a task by title or task_key."""
     if task_key:
@@ -128,7 +179,7 @@ def strip_markdown_(text: str) -> str:
     return "\n".join(lines)
 
 
-def execute_operation(parsed: dict, today: str) -> str:
+def execute_operation(parsed: dict, today: str, conflict_resolution: str = "overlap") -> str:
     """
     Execute a task operation based on parsed Claude response.
     Returns the message to display to the user.
@@ -148,11 +199,12 @@ def execute_operation(parsed: dict, today: str) -> str:
 
     # Create doesn't need task lookup
     if operation == "create" and title:
+        task_id = str(uuid.uuid4())
         effective_date = scheduled_date or (today if category in ("D", "M") else None)
         # Tasks with recurrence are created as templates
         is_template = bool(recurrence_rule)
         create_task_db(
-            str(uuid.uuid4()),
+            task_id,
             title,
             category,
             effective_date,
@@ -161,6 +213,8 @@ def execute_operation(parsed: dict, today: str) -> str:
             duration_minutes=duration_minutes,
             priority=priority
         )
+        if effective_date and 'T' in effective_date:
+            _resolve_conflicts(effective_date, duration_minutes or 15, task_id, conflict_resolution)
         return message
 
     # Update and delete operations require finding the task first
@@ -191,6 +245,10 @@ def execute_operation(parsed: dict, today: str) -> str:
         # Apply updates if any
         if updates:
             update_task_db(task.id, **updates)
+            new_sched = updates.get("scheduled_date")
+            if new_sched and 'T' in new_sched:
+                dur = updates.get("duration_minutes") or task.duration_minutes or 15
+                _resolve_conflicts(new_sched, dur, task.id, conflict_resolution)
 
     elif operation == "delete":
         task = find_task(title, task_key)
@@ -214,6 +272,14 @@ async def chat(chat_request: ChatRequest) -> dict:
     # Insert today's date into the system prompt
     today = datetime.now().strftime("%Y-%m-%d")
     system_prompt = SYSTEM_PROMPT.format(today=today)
+
+    # Inject user defaults so Claude uses them when the user doesn't specify
+    settings = get_user_settings()
+    system_prompt += (
+        f"\n\nUser-configured defaults — use these exactly; do not estimate or override:"
+        f"\n- Default category: {settings.default_category}"
+        f"\n- Default priority: {settings.default_priority} (ignore task description when assigning priority; always use this value unless the user explicitly states a different priority)"
+    )
 
     # Add current tasks to system prompt for context
     tasks = get_all_tasks()
@@ -246,7 +312,7 @@ async def chat(chat_request: ChatRequest) -> dict:
     except json.JSONDecodeError:
         return {"response": "Failed to parse AI response", "tasks": get_all_tasks()}
 
-    message = execute_operation(parsed, today)
+    message = execute_operation(parsed, today, settings.conflict_resolution)
 
     # Save conversation with assistant response
     conversation = [{"role": m.role, "content": m.content} for m in chat_request.messages]

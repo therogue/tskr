@@ -8,7 +8,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import create_task_db, get_all_tasks, get_tasks_for_date
+from database import create_task_db, get_all_tasks, get_tasks_for_date, update_task_db
+from main import execute_operation
 from prompts import SYSTEM_PROMPT
 
 
@@ -98,3 +99,71 @@ class TestDayViewExcludesUnscheduledTasks:
         all_tasks = get_all_tasks()
         ids = [t.id for t in all_tasks]
         assert "id-backlog" in ids
+
+
+class TestConflictResolution:
+    """Tests for execute_operation conflict resolution behavior."""
+
+    # Helper: create a task scheduled at HH:MM with given duration
+    def _make_scheduled(self, task_id: str, hhmm: str, duration: int) -> None:
+        create_task_db(task_id, f"Task {task_id}", "T", f"2026-03-07T{hhmm}")
+        update_task_db(task_id, duration_minutes=duration)
+
+    def test_unschedule_strips_time_from_conflicting_task(self, test_db):
+        """conflict_resolution='unschedule' strips time from overlapping task."""
+        self._make_scheduled("existing", "09:00", 60)  # 09:00–10:00
+
+        execute_operation(
+            {"operation": "create", "title": "New task", "scheduled_date": "2026-03-07T09:30",
+             "duration_minutes": 30, "message": "done"},
+            today="2026-03-07",
+            conflict_resolution="unschedule",
+        )
+
+        tasks = {t.id: t for t in get_all_tasks()}
+        # Existing task should have time stripped (date only)
+        assert tasks["existing"].scheduled_date == "2026-03-07"
+
+    def test_backlog_sets_scheduled_date_none(self, test_db):
+        """conflict_resolution='backlog' sets scheduled_date=None on overlapping task."""
+        self._make_scheduled("existing", "09:00", 60)  # 09:00–10:00
+
+        execute_operation(
+            {"operation": "create", "title": "New task", "scheduled_date": "2026-03-07T09:30",
+             "duration_minutes": 30, "message": "done"},
+            today="2026-03-07",
+            conflict_resolution="backlog",
+        )
+
+        tasks = {t.id: t for t in get_all_tasks()}
+        assert tasks["existing"].scheduled_date is None
+
+    def test_overlap_leaves_conflicting_task_unchanged(self, test_db):
+        """conflict_resolution='overlap' does not modify overlapping task."""
+        self._make_scheduled("existing", "09:00", 60)
+
+        execute_operation(
+            {"operation": "create", "title": "New task", "scheduled_date": "2026-03-07T09:30",
+             "duration_minutes": 30, "message": "done"},
+            today="2026-03-07",
+            conflict_resolution="overlap",
+        )
+
+        tasks = {t.id: t for t in get_all_tasks()}
+        assert tasks["existing"].scheduled_date == "2026-03-07T09:00"
+
+    def test_non_overlapping_task_never_affected(self, test_db):
+        """Tasks that do not overlap are never modified regardless of conflict_resolution."""
+        self._make_scheduled("before", "07:00", 30)  # 07:00–07:30
+        self._make_scheduled("after", "12:00", 60)   # 12:00–13:00
+
+        execute_operation(
+            {"operation": "create", "title": "New task", "scheduled_date": "2026-03-07T09:00",
+             "duration_minutes": 60, "message": "done"},
+            today="2026-03-07",
+            conflict_resolution="unschedule",
+        )
+
+        tasks = {t.id: t for t in get_all_tasks()}
+        assert tasks["before"].scheduled_date == "2026-03-07T07:00"
+        assert tasks["after"].scheduled_date == "2026-03-07T12:00"

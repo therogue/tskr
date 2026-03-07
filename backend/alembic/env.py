@@ -4,7 +4,7 @@ from sqlmodel import SQLModel
 from alembic import context
 
 # Import models so SQLModel.metadata is populated
-from models import Task, CategorySequence, Conversation  # noqa: F401
+from models import Task, CategorySequence, Conversation, UserSettings  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
