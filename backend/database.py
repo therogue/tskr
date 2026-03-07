@@ -508,3 +508,19 @@ def get_conversation_by_id(conversation_id: int) -> dict:
             return {"id": conv.id, "messages": json.loads(conv.messages)}
         return {"id": None, "messages": []}
 
+
+def get_conversation_title(conversation_id: int) -> Optional[str]:
+    """Return the title of the conversation, or None if not found."""
+    with Session(engine) as session:
+        conv = session.get(Conversation, conversation_id)
+        return conv.title if conv else None
+
+
+def update_conversation_title(conversation_id: int, title: str):
+    """Set the title of a conversation."""
+    with Session(engine) as session:
+        conv = session.get(Conversation, conversation_id)
+        if conv:
+            conv.title = title
+            session.commit()
+
