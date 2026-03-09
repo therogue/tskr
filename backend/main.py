@@ -25,7 +25,6 @@ from database import (
     new_conversation,
     list_conversations,
     get_conversation_by_id,
-    get_conversation_title,
     update_conversation_title,
 )
 
@@ -285,20 +284,14 @@ async def chat(chat_request: ChatRequest) -> dict:
 
     title: str | None = None
     if chat_request.conversation_id is not None:
-        # Check title before saving so we know whether to generate one
-        was_untitled = get_conversation_title(chat_request.conversation_id) == "Untitled"
-        save_conversation(conversation, chat_request.conversation_id)
+        title, was_untitled = save_conversation(conversation, chat_request.conversation_id)
 
         if was_untitled:
             generated = await generate_conversation_title(conversation)
             if generated:
                 update_conversation_title(chat_request.conversation_id, generated)
                 title = generated
-            else:
-                # Fallback: save_conversation already set the 50-char title
-                title = get_conversation_title(chat_request.conversation_id)
-        else:
-            title = get_conversation_title(chat_request.conversation_id)
+            # else: title already holds the 50-char fallback set by save_conversation
 
     return {"response": message, "tasks": get_all_tasks(), "title": title}
 

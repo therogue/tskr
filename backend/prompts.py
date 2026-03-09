@@ -1,10 +1,8 @@
-TITLE_PROMPT = (
-    "You are titling a conversation in a task management app. "
-    "The user message below describes what they want to do. "
-    "Generate a concise, human-friendly title (5 words or fewer) that captures their intent. "
-    "Examples: 'Grocery shopping task', 'Park visit planning', 'Team meeting setup', 'Weekly task review'. "
-    "Plain text only — no markdown, no asterisks, no quotes, no trailing punctuation."
-)
+TITLE_PROMPT = """You are titling a conversation in a task management app.
+The user message below describes what they want to do.
+Generate a concise, human-friendly title (5 words or fewer) that captures their intent.
+Examples: 'Grocery shopping task', 'Park visit planning', 'Team meeting setup', 'Weekly task review'.
+Plain text only — no markdown, no asterisks, no quotes, no trailing punctuation."""
 
 # System prompt for task decomposition
 # Categories: T=regular tasks, D=daily tasks, M=meetings, or user-defined
