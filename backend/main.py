@@ -9,7 +9,7 @@ import anthropic
 from dotenv import load_dotenv
 
 from models import Task, TaskUpdate, ChatRequest
-from prompts import SYSTEM_PROMPT
+from prompts import SYSTEM_PROMPT, TITLE_PROMPT
 from scheduling import build_schedule_context
 from database import (
     init_db,
@@ -21,10 +21,12 @@ from database import (
     find_task_by_title_db,
     find_task_by_key_db,
     get_conversation,
+    load_conversation,
     save_conversation,
     new_conversation,
     list_conversations,
     get_conversation_by_id,
+    update_conversation_title,
 )
 
 load_dotenv()
@@ -106,6 +108,35 @@ def get_conversation_by_id_endpoint(conversation_id: int) -> dict:
     if result["id"] is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return result
+
+
+@app.patch("/conversations/{conversation_id}/title")
+def update_conversation_title_endpoint(conversation_id: int, body: dict) -> dict:
+    """Set the title of a conversation."""
+    title = body.get("title", "")
+    if not isinstance(title, str) or not title.strip():
+        raise HTTPException(status_code=422, detail="title must be a non-empty string")
+    update_conversation_title(conversation_id, title.strip())
+    return {"id": conversation_id, "title": title.strip()}
+
+
+async def generate_conversation_title(messages: list[dict]) -> str | None:
+    """Call Claude with TITLE_PROMPT to produce a short descriptive title. Returns None on failure.
+    Only the first user message is sent — the assistant's reply is structured task metadata, not useful context."""
+    first_user = next((m["content"] for m in messages if m.get("role") == "user"), None)
+    if not first_user:
+        return None
+    try:
+        response = await client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=20,
+            system=TITLE_PROMPT,
+            messages=[{"role": "user", "content": first_user}],
+        )
+        title = response.content[0].text.strip()
+        return title if title else None
+    except Exception:
+        return None
 
 
 def find_task(title: str = None, task_key: str = None) -> Task | None:
@@ -251,10 +282,25 @@ async def chat(chat_request: ChatRequest) -> dict:
     # Save conversation with assistant response
     conversation = [{"role": m.role, "content": m.content} for m in chat_request.messages]
     conversation.append({"role": "assistant", "content": message})
-    if chat_request.conversation_id is not None:
-        save_conversation(conversation, chat_request.conversation_id)
 
-    return {"response": message, "tasks": get_all_tasks()}
+    title: str | None = None
+    if chat_request.conversation_id is not None:
+        conv = load_conversation(chat_request.conversation_id)
+
+        if conv:
+            # Determine title if this is an untitled conversation
+            new_title: str | None = None
+            if conv.title == "Untitled":
+                new_title = await generate_conversation_title(conversation)
+                if not new_title:
+                    first_user = next((m["content"] for m in conversation if m.get("role") == "user"), None)
+                    if first_user:
+                        new_title = first_user[:50]
+
+            save_conversation(chat_request.conversation_id, json.dumps(conversation), title=new_title)
+            title = new_title or conv.title
+
+    return {"response": message, "tasks": get_all_tasks(), "title": title}
 
 
 if __name__ == "__main__":

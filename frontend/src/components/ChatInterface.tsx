@@ -127,6 +127,12 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
       const data = await res.json()
       setMessages([...newMessages, { role: 'assistant', content: data.response }])
       onTasksUpdate()
+      if (data.title && activeConversationId !== null) {
+        const applyTitle = (convs: ConversationSummary[]) =>
+          convs.map((c) => (c.id === activeConversationId ? { ...c, title: data.title } : c))
+        setHistoryPopup((prev) => (prev ? { ...prev, conversations: applyTitle(prev.conversations) } : null))
+        setAllChats((prev) => (prev ? applyTitle(prev) : null))
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
