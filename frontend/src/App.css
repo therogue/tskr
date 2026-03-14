@@ -555,6 +555,12 @@ body {
   pointer-events: none;
 }
 
+.chat-panel.collapsed .chat-messages,
+.chat-panel.collapsed .chat-input-form {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .chat-header {
   display: flex;
   align-items: center;
