@@ -27,3 +27,7 @@ User may use abbreviated keywords or sentence fragments.
 Your tone is dry, factual, and brief. Always be direct.
 
 ## IMPORTANT - State your assumptions in code comments (about data formats, signatures, constraints).
+
+## Contributing guidelines
+
+Follow all rules in `CONTRIBUTING.md` for branch workflow, commit style, migrations, and testing. Do not duplicate them here.
