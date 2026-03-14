@@ -1,69 +1,91 @@
-import { useState, useEffect } from 'react'
-import TaskList from './components/TaskList'
-import ChatInterface from './components/ChatInterface'
+import { useState, useEffect } from "react";
+import TaskList from "./components/TaskList";
+import ChatInterface from "./components/ChatInterface";
+import QuickEntry from "./components/QuickEntry";
 
 // Assumption: Task matches backend Task model, with optional projected field
 interface Task {
-  id: string
-  task_key: string
-  category: string
-  task_number: number
-  title: string
-  completed: boolean
-  scheduled_date: string | null  // YYYY-MM-DD or YYYY-MM-DDTHH:MM
-  recurrence_rule: string | null
-  created_at: string
-  is_template: boolean
-  parent_task_id: string | null
-  duration_minutes: number | null
-  priority: number | null  // 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
-  projected?: boolean
+  id: string;
+  task_key: string;
+  category: string;
+  task_number: number;
+  title: string;
+  completed: boolean;
+  scheduled_date: string | null; // YYYY-MM-DD or YYYY-MM-DDTHH:MM
+  recurrence_rule: string | null;
+  created_at: string;
+  is_template: boolean;
+  parent_task_id: string | null;
+  duration_minutes: number | null;
+  priority: number | null; // 0=None, 1=Low, 2=Medium, 3=High, 4=Critical
+  projected?: boolean;
 }
 
-type ViewMode = 'day' | 'all' | 'completed' | 'backlog'
+type ViewMode = "day" | "all" | "completed" | "backlog";
 
-const API_URL = 'http://localhost:8000'
+const API_URL = "http://localhost:8000";
 
 // Helper to format Date to YYYY-MM-DD
 function formatDateStr(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function App() {
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [viewMode, setViewMode] = useState<ViewMode>('day')
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("day");
+  const [quickEntryOpen, setQuickEntryOpen] = useState(false);
 
   // Get today's date in YYYY-MM-DD format
-  const todayStr = formatDateStr(new Date())
-  const [selectedDate, setSelectedDate] = useState<string>(todayStr)
+  const todayStr = formatDateStr(new Date());
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+
+  // Ctrl+. / Cmd+. opens quick entry
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "." && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setQuickEntryOpen((prev) => !prev);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
-    fetchTasks()
-  }, [viewMode, selectedDate])
+    fetchTasks();
+  }, [viewMode, selectedDate]);
 
   async function fetchTasks() {
     try {
       // Day view uses date-specific endpoint, others use /tasks
-      const url = viewMode === 'day'
-        ? `${API_URL}/tasks/for-date?date=${selectedDate}`
-        : `${API_URL}/tasks`
-      const res = await fetch(url)
-      const data = await res.json()
-      setTasks(data)
+      const url =
+        viewMode === "day"
+          ? `${API_URL}/tasks/for-date?date=${selectedDate}`
+          : `${API_URL}/tasks`;
+      const res = await fetch(url);
+      const data = await res.json();
+      setTasks(data);
     } catch (err) {
-      console.error('Failed to fetch tasks:', err)
+      console.error("Failed to fetch tasks:", err);
     }
   }
 
   function handleTasksUpdate() {
     // Refetch tasks after any update
-    fetchTasks()
+    fetchTasks();
   }
 
   return (
     <div className="app">
       <header className="header">
-        <h1><img src="/hakadorio-logo.png" alt="hakadorio" className="header-logo" />Hakadorio</h1>
+        <h1>
+          <img
+            src="/hakadorio-logo.png"
+            alt="hakadorio"
+            className="header-logo"
+          />
+          Hakadorio
+        </h1>
       </header>
       <main className="main">
         <TaskList
@@ -77,8 +99,14 @@ function App() {
         />
         <ChatInterface onTasksUpdate={handleTasksUpdate} />
       </main>
+      {quickEntryOpen && (
+        <QuickEntry
+          onClose={() => setQuickEntryOpen(false)}
+          onTasksUpdate={handleTasksUpdate}
+        />
+      )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

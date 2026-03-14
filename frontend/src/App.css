@@ -5,7 +5,7 @@
 }
 
 body {
-  font-family: 'Manrope', sans-serif;
+  font-family: "Manrope", sans-serif;
   background: #0d1b2a;
   color: #e8e8e8;
 }
@@ -225,7 +225,9 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   cursor: pointer;
 }
 .task-item.selected {
@@ -279,7 +281,9 @@ body {
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.2s ease, color 0.15s ease;
+  transition:
+    opacity 0.2s ease,
+    color 0.15s ease;
 }
 
 .task-item:hover .task-delete-btn,
@@ -441,7 +445,9 @@ body {
   gap: 4px;
   font-size: 0.8rem;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .calendar-task-block.selected {
   border: 2px solid #6b8cce;
@@ -794,4 +800,61 @@ body {
   background: #2a3f5f;
   color: #607080;
   cursor: not-allowed;
+}
+
+/* Quick Entry (Spotlight-style popup) */
+.quick-entry-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 20vh;
+}
+
+.quick-entry-popup {
+  background: #152238;
+  border: 1px solid #3a4f6f;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  width: 520px;
+  max-width: calc(100vw - 2rem);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.quick-entry-input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  background: #1b2838;
+  border: 1px solid #3a4f6f;
+  border-radius: 8px;
+  color: #e8e8e8;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.quick-entry-input::placeholder {
+  color: #607080;
+}
+
+.quick-entry-input:focus {
+  outline: none;
+  border-color: #6b8cce;
+}
+
+.quick-entry-feedback {
+  font-size: 0.82rem;
+  color: #a0b0c0;
+  padding: 0 0.25rem;
+}
+
+.quick-entry-hint {
+  font-size: 0.72rem;
+  color: #4a5a6a;
+  padding: 0 0.25rem;
 }
