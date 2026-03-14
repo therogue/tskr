@@ -151,6 +151,6 @@ temp/
 
 .claude/*
 
-backend/tskr.db
+backend/hakadorio.db
 
 frontend/package-lock.json
