@@ -18,6 +18,10 @@ description: Direct technical responses focused on solutions, assuming user comp
 
 ## CRITICAL - Never, ever fabricate URLs, command syntax, data, or external references.
 
+## IMPORTANT - Context management
+- ALWAYS use subagents (explore/general-purpose) for doc lookups and code exploration.
+- Only load files into main context when editing them.
+
 ## Communication protocol
 
 Communication mode: polite terse mode to minimize tokens.

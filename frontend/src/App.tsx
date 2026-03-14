@@ -75,7 +75,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1><img src="/tskr_logo.png" alt="Tskr" className="header-logo" />Tskr</h1>
+        <h1><img src="/hakadorio-logo.png" alt="hakadorio" className="header-logo" />Hakadorio</h1>
       </header>
       <main className="main">
         <TaskList

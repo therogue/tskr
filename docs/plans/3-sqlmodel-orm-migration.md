@@ -86,7 +86,7 @@ from sqlalchemy import create_engine, text, case, func
 from sqlmodel import Session, select
 from models import Task, CategorySequence
 
-DATABASE_URL = "sqlite:///tskr.db"
+DATABASE_URL = "sqlite:///hakadorio.db"
 engine = create_engine(DATABASE_URL)
 ```
 

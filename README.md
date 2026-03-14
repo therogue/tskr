@@ -1,4 +1,4 @@
-# Tskr
+# Hakadorio
 
 Local task manager with AI-powered task management.
 

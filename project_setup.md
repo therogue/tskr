@@ -1,4 +1,4 @@
-Create the UI scaffolding for a local task manager app called "Tskr"
+Create the UI scaffolding for a local task manager app called "Hakadorio"
 
 Stack:
 - Frontend: Vite + React + TypeScript

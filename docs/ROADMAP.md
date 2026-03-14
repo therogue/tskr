@@ -6,7 +6,7 @@
 - LLM-assigned priority scoring (0-4) for new tasks
 - Multiple chat threads with separate conversation histories
 - Bulk-complete selected tasks via multi-select
-- Add Tskr logo
+- Add Hakadorio logo
 
 ## 0.2
 - Add CONTRIBUTIONS.md file including details about e.g. alembic autogenerate migrations, etc.

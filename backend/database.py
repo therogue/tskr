@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from models import Task, CategorySequence, Conversation
 
-DATABASE_URL = "sqlite:///tskr.db"
+DATABASE_URL = "sqlite:///hakadorio.db"
 engine = create_engine(DATABASE_URL)
 
 

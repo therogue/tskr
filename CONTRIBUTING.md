@@ -1,4 +1,4 @@
-# Contributing to Tskr
+# Contributing to Hakadorio
 
 ## Branch workflow
 
