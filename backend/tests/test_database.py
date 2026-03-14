@@ -1,6 +1,7 @@
 """
 Tests for database.py - task CRUD, recurrence calculation, task numbering.
 """
+import json
 import pytest
 import sys
 import os
@@ -422,7 +423,7 @@ class TestConversation:
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"},
         ]
-        save_conversation(messages, conv_id)
+        save_conversation(conv_id, json.dumps(messages))
 
         result = get_conversation()
         assert result["id"] == conv_id
@@ -439,12 +440,12 @@ class TestConversation:
     def test_update_conversation(self, test_db):
         """Update existing conversation."""
         conv_id = new_conversation()
-        save_conversation([{"role": "user", "content": "First"}], conv_id)
-        save_conversation([
+        save_conversation(conv_id, json.dumps([{"role": "user", "content": "First"}]))
+        save_conversation(conv_id, json.dumps([
             {"role": "user", "content": "First"},
             {"role": "assistant", "content": "Response"},
             {"role": "user", "content": "Second"},
-        ], conv_id)
+        ]))
 
         result = get_conversation()
         assert result["id"] == conv_id

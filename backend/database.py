@@ -460,27 +460,26 @@ def get_conversation() -> dict:
         return {"id": None, "messages": []}
 
 
-def save_conversation(messages: list[dict], conversation_id: int) -> tuple[str, bool]:
-    """Save conversation messages for the given conversation_id.
-    Returns (title_after_save, was_untitled_before_save) so callers avoid extra DB reads."""
-    now = datetime.now().isoformat()
+def load_conversation(conversation_id: int) -> Optional[Conversation]:
+    """Load a conversation by ID. Returns detached Conversation object, or None if not found."""
     with Session(engine) as session:
         conv = session.get(Conversation, conversation_id)
         if not conv:
-            return ("Untitled", False)
+            return None
+        return conv.model_copy()
 
-        was_untitled = conv.title == "Untitled"
-        conv.messages = json.dumps(messages)
-        conv.updated_at = now
 
-        # Hard fallback: first 50 chars of first user message
-        if was_untitled:
-            first_user = next((m["content"] for m in messages if m.get("role") == "user"), None)
-            if first_user:
-                conv.title = first_user[:50]
-
+def save_conversation(conversation_id: int, messages: str, title: Optional[str] = None) -> None:
+    """Update a conversation's messages and optionally its title."""
+    with Session(engine) as session:
+        conv = session.get(Conversation, conversation_id)
+        if not conv:
+            return
+        conv.messages = messages
+        if title is not None:
+            conv.title = title
+        conv.updated_at = datetime.now().isoformat()
         session.commit()
-        return (conv.title, was_untitled)
 
 
 def new_conversation() -> int:

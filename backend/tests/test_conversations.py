@@ -2,6 +2,7 @@
 Tests for conversation history feature (Issue #26).
 Covers: list_conversations, get_conversation_by_id, GET /conversations, GET /conversations/{id}.
 """
+import json
 import pytest
 import sys
 import os
@@ -34,7 +35,7 @@ class TestListConversations:
         id2 = new_conversation()
         id3 = new_conversation()
         # Touch id1 last so it should appear first
-        save_conversation([{"role": "user", "content": "hello"}], id1)
+        save_conversation(id1, json.dumps([{"role": "user", "content": "hello"}]))
         result = list_conversations()
         assert result[0]["id"] == id1
         assert {r["id"] for r in result} == {id1, id2, id3}
@@ -61,7 +62,7 @@ class TestListConversations:
 
     def test_title_reflects_saved_conversation(self, test_db):
         conv_id = new_conversation()
-        save_conversation([{"role": "user", "content": "Plan my week"}], conv_id)
+        save_conversation(conv_id, json.dumps([{"role": "user", "content": "Plan my week"}]), title="Plan my week")
         result = list_conversations()
         assert result[0]["title"] == "Plan my week"
 
@@ -77,8 +78,8 @@ class TestGetConversationById:
     def test_returns_correct_conversation(self, test_db):
         id1 = new_conversation()
         id2 = new_conversation()
-        save_conversation([{"role": "user", "content": "msg for id1"}], id1)
-        save_conversation([{"role": "user", "content": "msg for id2"}], id2)
+        save_conversation(id1, json.dumps([{"role": "user", "content": "msg for id1"}]))
+        save_conversation(id2, json.dumps([{"role": "user", "content": "msg for id2"}]))
 
         result = get_conversation_by_id(id1)
         assert result["id"] == id1
@@ -101,7 +102,7 @@ class TestGetConversationById:
             {"role": "user", "content": "hello"},
             {"role": "assistant", "content": "hi there"},
         ]
-        save_conversation(msgs, conv_id)
+        save_conversation(conv_id, json.dumps(msgs))
         result = get_conversation_by_id(conv_id)
         assert result["messages"] == msgs
 
@@ -160,8 +161,8 @@ class TestConversationsAPI:
         # Instead call save_conversation directly through the DB function.
         import database
         database.save_conversation(
-            [{"role": "user", "content": "test message"}],
             conv_id,
+            json.dumps([{"role": "user", "content": "test message"}]),
         )
 
         res = app_client.get(f"/conversations/{conv_id}")
@@ -175,7 +176,7 @@ class TestConversationsAPI:
         id2 = app_client.post("/conversation/new").json()["id"]
         # Touch id1 to make it most recent
         import database
-        database.save_conversation([{"role": "user", "content": "bump"}], id1)
+        database.save_conversation(id1, json.dumps([{"role": "user", "content": "bump"}]))
 
         res = app_client.get("/conversations?limit=2")
         ids = [item["id"] for item in res.json()]
@@ -214,7 +215,7 @@ class TestAppOpenFreshConversation:
         import database
 
         old_id = app_client.post("/conversation/new").json()["id"]
-        database.save_conversation([{"role": "user", "content": "yesterday's task"}], old_id)
+        database.save_conversation(old_id, json.dumps([{"role": "user", "content": "yesterday's task"}]))
 
         # Simulate reopening the app
         app_client.post("/conversation/new")
@@ -227,7 +228,7 @@ class TestAppOpenFreshConversation:
         import database
 
         old_id = app_client.post("/conversation/new").json()["id"]
-        database.save_conversation([{"role": "user", "content": "keep this"}], old_id)
+        database.save_conversation(old_id, json.dumps([{"role": "user", "content": "keep this"}]))
 
         app_client.post("/conversation/new")
 

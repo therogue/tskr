@@ -21,6 +21,7 @@ from database import (
     find_task_by_title_db,
     find_task_by_key_db,
     get_conversation,
+    load_conversation,
     save_conversation,
     new_conversation,
     list_conversations,
@@ -284,14 +285,20 @@ async def chat(chat_request: ChatRequest) -> dict:
 
     title: str | None = None
     if chat_request.conversation_id is not None:
-        title, was_untitled = save_conversation(conversation, chat_request.conversation_id)
+        conv = load_conversation(chat_request.conversation_id)
 
-        if was_untitled:
-            generated = await generate_conversation_title(conversation)
-            if generated:
-                update_conversation_title(chat_request.conversation_id, generated)
-                title = generated
-            # else: title already holds the 50-char fallback set by save_conversation
+        if conv:
+            # Determine title if this is an untitled conversation
+            new_title: str | None = None
+            if conv.title == "Untitled":
+                new_title = await generate_conversation_title(conversation)
+                if not new_title:
+                    first_user = next((m["content"] for m in conversation if m.get("role") == "user"), None)
+                    if first_user:
+                        new_title = first_user[:50]
+
+            save_conversation(chat_request.conversation_id, json.dumps(conversation), title=new_title)
+            title = new_title or conv.title
 
     return {"response": message, "tasks": get_all_tasks(), "title": title}
 
