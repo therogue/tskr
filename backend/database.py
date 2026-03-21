@@ -512,6 +512,9 @@ def load_conversation(conversation_id: int) -> Optional[Conversation]:
 
 def save_conversation(conversation_id: int, messages: str, title: Optional[str] = None) -> None:
     """Update a conversation's messages and optionally its title."""
+    # messages is expected to be a JSON-serialized list; treat "" and "[]" as empty
+    if not messages or messages.strip() == "[]":
+        return
     with Session(engine) as session:
         conv = session.get(Conversation, conversation_id)
         if not conv:
