@@ -11,7 +11,6 @@ from database import create_task_db, get_all_tasks, update_task_db
 from graph import (
     _strip_markdown,
     _find_task_in_scope,
-    _key_is_ambiguous,
     _apply_operation,
     _resolve_conflicts,
     _time_to_minutes,
@@ -97,17 +96,64 @@ class TestFindTaskInScope:
         result = _find_task_in_scope(TASKS_NO_CONFLICT, title="groceries", task_key="M-01")
         assert result["title"] == "go to an event"
 
+    def test_disambiguate_by_target_date(self):
+        tasks = [
+            {"id": "id-1", "task_key": "M-02", "title": "meet Alex", "category": "M", "scheduled_date": "2026-03-18T15:00", "completed": False},
+            {"id": "id-2", "task_key": "M-02", "title": "meet Barnabas", "category": "M", "scheduled_date": "2026-03-19T16:00", "completed": False},
+        ]
+        result = _find_task_in_scope(tasks, task_key="M-02", target_date="2026-03-18")
+        assert result is not None
+        assert result["title"] == "meet Alex"
 
-class TestKeyIsAmbiguous:
+        result = _find_task_in_scope(tasks, task_key="M-02", target_date="2026-03-19")
+        assert result is not None
+        assert result["title"] == "meet Barnabas"
 
-    def test_not_ambiguous(self):
-        assert _key_is_ambiguous("M-02", TASKS_NO_CONFLICT) is False
+    def test_disambiguate_by_title_when_date_fails(self):
+        tasks = [
+            {"id": "id-1", "task_key": "M-02", "title": "meet Alex", "category": "M", "scheduled_date": "2026-03-18T15:00", "completed": False},
+            {"id": "id-2", "task_key": "M-02", "title": "meet Barnabas", "category": "M", "scheduled_date": "2026-03-19T16:00", "completed": False},
+        ]
+        # target_date doesn't match either, but title "Alex" narrows to one
+        result = _find_task_in_scope(tasks, title="Alex", task_key="M-02", target_date="2026-03-25")
+        assert result is not None
+        assert result["title"] == "meet Alex"
 
-    def test_ambiguous(self):
-        assert _key_is_ambiguous("M-02", TASKS_WITH_CONFLICT) is True
+    def test_still_ambiguous_when_nothing_helps(self):
+        result = _find_task_in_scope(TASKS_WITH_CONFLICT, task_key="M-02", target_date="2026-03-25")
+        assert result is None
 
-    def test_nonexistent_key(self):
-        assert _key_is_ambiguous("Z-99", TASKS_NO_CONFLICT) is False
+    def test_disambiguate_by_user_message(self):
+        """When key is ambiguous and title is the NEW name (post-rename),
+        user_message containing the ORIGINAL name should disambiguate."""
+        tasks = [
+            {"id": "id-1", "task_key": "M-02", "title": "meet with Alex", "category": "M", "scheduled_date": "2026-03-18T16:00", "completed": False},
+            {"id": "id-2", "task_key": "M-02", "title": "meet with Barnabas", "category": "M", "scheduled_date": "2026-03-19T16:00", "completed": False},
+        ]
+        result = _find_task_in_scope(
+            tasks, title="meet with Barney", task_key="M-02",
+            target_date="2026-03-25",
+            user_message="rename meet with Alex to meet with Barney",
+        )
+        assert result is not None
+        assert result["title"] == "meet with Alex"
+
+    def test_user_message_not_used_when_key_unique(self):
+        """user_message should not interfere when key is already unique."""
+        result = _find_task_in_scope(
+            TASKS_NO_CONFLICT, task_key="M-02",
+            user_message="irrelevant text about groceries",
+        )
+        assert result is not None
+        assert result["title"] == "meet with Barnabas"
+
+    def test_user_message_ambiguous_too(self):
+        """If user_message matches both tasks, still returns None."""
+        result = _find_task_in_scope(
+            TASKS_WITH_CONFLICT, task_key="M-02",
+            user_message="something about meet",
+        )
+        assert result is None
 
 
 class TestApplyOperationCreate:
@@ -182,15 +228,41 @@ class TestApplyOperationUpdate:
             "2026-03-18",
             TASKS_NO_CONFLICT,
         )
-        assert "Could not find" in result
+        assert "couldn't identify" in result
 
-    def test_update_ambiguous_key_refused(self, test_db):
+    def test_update_ambiguous_key_not_found(self, test_db):
         result = _apply_operation(
             {"operation": "update", "task_key": "M-02", "title": "new", "message": "Done"},
             "2026-03-18",
             TASKS_WITH_CONFLICT,
         )
-        assert "Multiple tasks share key" in result
+        assert "couldn't identify" in result
+
+    def test_update_with_user_message_disambiguation(self, test_db):
+        """Exact reproduction of the failing scenario: two M-02 tasks, LLM returns
+        the NEW title, but user_message contains the OLD title for disambiguation."""
+        create_task_db("id-1", "meet with Alex", "M", "2026-03-18T16:00")
+        create_task_db("id-2", "meet with Barnabas", "M", "2026-03-19T16:00")
+        scoped = [
+            {"id": "id-1", "task_key": "M-02", "title": "meet with Alex", "category": "M", "scheduled_date": "2026-03-18T16:00", "completed": False},
+            {"id": "id-2", "task_key": "M-02", "title": "meet with Barnabas", "category": "M", "scheduled_date": "2026-03-19T16:00", "completed": False},
+        ]
+        parsed = {
+            "operation": "update",
+            "task_key": "M-02",
+            "title": "meet with Barney",
+            "message": "Updated your meeting.",
+        }
+        result = _apply_operation(
+            parsed, "2026-03-18", scoped,
+            target_date="2026-03-25",
+            user_message="update meet with Alex to meet with Barney",
+        )
+        assert result == "Updated your meeting."
+        tasks = get_all_tasks()
+        renamed = [t for t in tasks if t.title == "meet with Barney"]
+        assert len(renamed) == 1
+        assert renamed[0].id == "id-1"
 
     def test_update_no_changes(self, test_db):
         create_task_db("id-1", "task", "T")
@@ -223,15 +295,15 @@ class TestApplyOperationDelete:
             "2026-03-18",
             TASKS_NO_CONFLICT,
         )
-        assert "Could not find" in result
+        assert "couldn't identify" in result
 
-    def test_delete_ambiguous_key_refused(self, test_db):
+    def test_delete_ambiguous_key_not_found(self, test_db):
         result = _apply_operation(
             {"operation": "delete", "task_key": "M-02", "message": "Done"},
             "2026-03-18",
             TASKS_WITH_CONFLICT,
         )
-        assert "Multiple tasks share key" in result
+        assert "couldn't identify" in result
 
 
 class TestApplyOperationNone:
@@ -247,14 +319,13 @@ class TestApplyOperationNone:
 
 class TestFetchTasksForState:
 
-    def test_scoped_by_date(self, test_db):
+    def test_returns_all_incomplete_even_with_target_date(self, test_db):
         create_task_db("id-1", "task on day", "T", "2026-03-18")
         create_task_db("id-2", "task other day", "T", "2026-03-19")
 
         state = {"today": "2026-03-18", "target_date": "2026-03-18"}
         result = _fetch_tasks_for_state(state, "test")
-        assert len(result) == 1
-        assert result[0]["title"] == "task on day"
+        assert len(result) == 2
 
     def test_all_incomplete_without_date(self, test_db):
         create_task_db("id-1", "task A", "T", "2026-03-18")

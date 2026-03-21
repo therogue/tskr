@@ -11,6 +11,10 @@ Given the conversation history and the latest user message, classify the user's 
 - "clarification_answer": user is answering a question the assistant asked in the previous turn
 - "reschedule": user wants to move one or more existing tasks to a different date or time
 
+CRITICAL — Clarification detection:
+- If the IMMEDIATELY PRECEDING assistant message ends with a question (e.g. "What title?", "When should I schedule it?", "Which task?"), and the user's latest message is a short/direct answer to that question (a date, time, name, "yes", "no", etc.), classify as "clarification_answer".
+- A bare time like "3pm", a date like "tomorrow", or a title like "buy milk" IS a clarification answer when it directly responds to an assistant question — NOT a new task_operation.
+
 Also extract any relevant context: task keys (e.g. T-01), task titles, dates, or times mentioned.
 
 Resolve "target_date" to YYYY-MM-DD by scanning the FULL conversation history — not just the latest message. The date may have been stated in an earlier turn (e.g. "create a meeting on Wednesday" followed by "rename it"). If any turn in the conversation establishes which date the task is on, use that date. If no date can be determined from any turn, set "target_date" to null.

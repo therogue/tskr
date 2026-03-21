@@ -52,13 +52,51 @@ def _strip_markdown(text: str) -> str:
 
 
 def _find_task_in_scope(
-    relevant_tasks: list[dict], title: str = "", task_key: str = ""
+    relevant_tasks: list[dict],
+    title: str = "",
+    task_key: str = "",
+    target_date: str = "",
+    user_message: str = "",
 ) -> Optional[dict]:
-    """Find a task from the scoped list by task_key (preferred) or title substring."""
+    """Find a task from the scoped list by task_key (preferred) or title substring.
+    When task_key matches multiple tasks, narrows by:
+      1. target_date (scheduled_date prefix)
+      2. title substring (LLM's title vs task titles)
+      3. user_message substring (original user input vs task titles)
+    """
     if task_key:
         matches = [t for t in relevant_tasks if t["task_key"] == task_key.upper()]
         if len(matches) == 1:
             return matches[0]
+        if len(matches) > 1:
+            if target_date:
+                date_matches = [
+                    t for t in matches
+                    if t.get("scheduled_date", "")[:10] == target_date
+                ]
+                if len(date_matches) == 1:
+                    print(f"[graph] _find_task_in_scope: disambiguated {task_key} by target_date={target_date}")
+                    return date_matches[0]
+            if title:
+                title_matches = [
+                    t for t in matches
+                    if title.lower() in t["title"].lower() or t["title"].lower() in title.lower()
+                ]
+                if len(title_matches) == 1:
+                    print(f"[graph] _find_task_in_scope: disambiguated {task_key} by title={title!r}")
+                    return title_matches[0]
+            # Use the raw user message — contains the ORIGINAL task name
+            if user_message:
+                msg_lower = user_message.lower()
+                msg_matches = [
+                    t for t in matches
+                    if t["title"].lower() in msg_lower
+                ]
+                if len(msg_matches) == 1:
+                    print(f"[graph] _find_task_in_scope: disambiguated {task_key} by user_message")
+                    return msg_matches[0]
+            match_titles = [t["title"] for t in matches]
+            print(f"[graph] _find_task_in_scope: {task_key} still ambiguous ({len(matches)} matches: {match_titles})")
         return None
     if title:
         matches = [t for t in relevant_tasks if title.lower() in t["title"].lower()]
@@ -66,12 +104,6 @@ def _find_task_in_scope(
             return matches[0]
         return None
     return None
-
-
-def _key_is_ambiguous(task_key: str, relevant_tasks: list[dict]) -> bool:
-    """Check if task_key appears more than once in the scoped task list."""
-    count = sum(1 for t in relevant_tasks if t["task_key"] == task_key.upper())
-    return count > 1
 
 
 def _time_to_minutes(scheduled_date: str) -> int:
@@ -112,9 +144,15 @@ def _resolve_conflicts(
                 update_task_db(task.id, scheduled_date=None)
 
 
-def _apply_operation(parsed: dict, today: str, relevant_tasks: list[dict], conflict_resolution: str = "overlap") -> str:
+def _apply_operation(
+    parsed: dict, today: str, relevant_tasks: list[dict],
+    conflict_resolution: str = "overlap",
+    target_date: str = "", user_message: str = "",
+) -> str:
     """Execute a task operation from a parsed LLM response. Returns user-facing message.
-    relevant_tasks: the date-scoped task list used for ambiguity checks.
+    relevant_tasks: task list used for lookups and ambiguity resolution.
+    target_date: date hint from classify_intent for disambiguating duplicate keys.
+    user_message: raw user input for disambiguation when key and title both fail.
     """
     operation = parsed.get("operation", "none")
     title = parsed.get("title", "")
@@ -148,13 +186,10 @@ def _apply_operation(parsed: dict, today: str, relevant_tasks: list[dict], confl
         return message
 
     if operation == "update":
-        if task_key and _key_is_ambiguous(task_key, relevant_tasks):
-            print(f"[graph] update: ambiguous task_key {task_key!r} in scoped list — refusing")
-            return f"Multiple tasks share key '{task_key}'. Please specify the task by its full title instead."
-        scoped = _find_task_in_scope(relevant_tasks, title, task_key)
+        scoped = _find_task_in_scope(relevant_tasks, title, task_key, target_date, user_message)
         if not scoped:
-            print(f"[graph] update: task not found in scoped list for key={task_key!r} title={title!r}")
-            return f"Could not find task matching '{task_key or title}'"
+            print(f"[graph] update: task not found in scoped list for key={task_key!r} title={title!r} user_message={user_message!r}")
+            return f"Sorry, I couldn't identify which task to update. Could you specify the exact task title or key?"
         task_id = scoped["id"]
         print(f"[graph] update: found task id={task_id} key={scoped['task_key']} title={scoped['title']!r} current_scheduled={scoped['scheduled_date']!r}")
         updates: dict = {}
@@ -186,13 +221,10 @@ def _apply_operation(parsed: dict, today: str, relevant_tasks: list[dict], confl
         return message
 
     if operation == "delete":
-        if task_key and _key_is_ambiguous(task_key, relevant_tasks):
-            print(f"[graph] delete: ambiguous task_key {task_key!r} in scoped list — refusing")
-            return f"Multiple tasks share key '{task_key}'. Please specify the task by its full title instead."
-        scoped = _find_task_in_scope(relevant_tasks, title, task_key)
+        scoped = _find_task_in_scope(relevant_tasks, title, task_key, target_date, user_message)
         if not scoped:
-            print(f"[graph] delete: task not found in scoped list for key={task_key!r} title={title!r}")
-            return f"Could not find task matching '{task_key or title}'"
+            print(f"[graph] delete: task not found in scoped list for key={task_key!r} title={title!r} user_message={user_message!r}")
+            return f"Sorry, I couldn't identify which task to delete. Could you specify the exact task title or key?"
         delete_task_db(scoped["id"])
         print(f"[graph] deleted task id={scoped['id']} key={scoped['task_key']}")
         return message
@@ -245,16 +277,10 @@ def resolve_clarification(state: GraphState) -> dict:
 
 
 def _fetch_tasks_for_state(state: GraphState, label: str) -> list[dict]:
-    """Fetch tasks scoped to target_date if available, otherwise all incomplete."""
+    """Always fetch all incomplete tasks. target_date is passed to the LLM for prioritization."""
+    tasks = [t for t in get_all_tasks() if not t.completed]
     target_date = state.get("target_date", "")
-    today = state["today"]
-
-    if target_date:
-        tasks = get_tasks_for_date(target_date, today)
-        print(f"[graph] {label}: {len(tasks)} task(s) for date {target_date}")
-    else:
-        tasks = [t for t in get_all_tasks() if not t.completed]
-        print(f"[graph] {label}: {len(tasks)} incomplete task(s) (no date filter)")
+    print(f"[graph] {label}: {len(tasks)} incomplete task(s), target_date={target_date!r}")
 
     return [
         {
@@ -284,6 +310,7 @@ async def execute_operation(state: GraphState) -> dict:
     today = state["today"]
     tasks = state["relevant_tasks"]
 
+    target_date = state.get("target_date", "")
     system = SYSTEM_PROMPT.format(today=today)
 
     default_category = state.get("default_category", "T")
@@ -296,9 +323,14 @@ async def execute_operation(state: GraphState) -> dict:
     )
 
     if tasks:
-        task_list = "\n".join([f"- {t['task_key']}: {t['title']}" for t in tasks])
+        task_list = "\n".join(
+            f"- {t['task_key']}: {t['title']} (scheduled: {t['scheduled_date'] or 'unscheduled'})"
+            for t in tasks
+        )
         print(f"[graph] execute_operation task_list:\n{task_list}")
         system += f"\n\nCurrent incomplete tasks:\n{task_list}"
+    if target_date:
+        system += f"\n\nThe user is referring to tasks on: {target_date}. Prefer matching tasks scheduled on this date."
 
     today_tasks = get_tasks_for_date(today, today)
     schedule_context = build_schedule_context(today_tasks)
@@ -323,7 +355,8 @@ async def execute_operation(state: GraphState) -> dict:
         return {"operation_result": {}, "final_response": f"Error processing request: {e}"}
 
     conflict_resolution = state.get("conflict_resolution", "overlap")
-    message = _apply_operation(parsed, today, tasks, conflict_resolution)
+    user_message = state.get("user_message", "")
+    message = _apply_operation(parsed, today, tasks, conflict_resolution, target_date, user_message)
     return {"operation_result": parsed, "final_response": message}
 
 
@@ -341,8 +374,11 @@ async def execute_reschedule(state: GraphState) -> dict:
         else "No tasks found."
     )
 
+    target_date = state.get("target_date", "")
     print(f"[graph] execute_reschedule task_list:\n{task_list}")
     system = RESCHEDULE_PROMPT.format(today=today, task_list=task_list)
+    if target_date:
+        system += f"\n\nThe user is referring to tasks on: {target_date}. Prefer matching tasks scheduled on this date."
 
     try:
         response = await _client.messages.create(
@@ -363,17 +399,17 @@ async def execute_reschedule(state: GraphState) -> dict:
 
     updated_count = 0
     not_found_keys = []
-    conflict_keys = []
     for item in parsed.get("reschedules", []):
         task_key = item.get("task_key", "")
         new_date = item.get("new_scheduled_date")
         print(f"[graph] execute_reschedule: rescheduling key={task_key!r} to {new_date!r}")
         if task_key and new_date:
-            if _key_is_ambiguous(task_key, tasks):
-                print(f"[graph] execute_reschedule: ambiguous task_key {task_key!r} in scoped list — skipping")
-                conflict_keys.append(task_key)
-                continue
-            scoped = _find_task_in_scope(tasks, task_key=task_key)
+            user_message = state.get("user_message", "")
+            title_hint = item.get("title", "")
+            scoped = _find_task_in_scope(
+                tasks, title=title_hint, task_key=task_key,
+                target_date=target_date, user_message=user_message,
+            )
             if scoped:
                 update_task_db(scoped["id"], scheduled_date=new_date)
                 print(f"[graph] execute_reschedule: updated task id={scoped['id']} title={scoped['title']!r}")
@@ -382,11 +418,6 @@ async def execute_reschedule(state: GraphState) -> dict:
                 print(f"[graph] execute_reschedule: task not found in scoped list for key={task_key!r}")
                 not_found_keys.append(task_key)
 
-    if conflict_keys:
-        return {
-            "operation_result": parsed,
-            "final_response": f"Multiple tasks share key '{', '.join(conflict_keys)}' — can't determine which to reschedule. Please specify the task by its full title.",
-        }
     if not_found_keys:
         return {
             "operation_result": parsed,
