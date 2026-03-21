@@ -3,11 +3,6 @@ Tests for FastAPI endpoints in main.py.
 Does not test /chat endpoint (requires mocking Claude API).
 Uses create_task_db to set up test data since POST /tasks was removed.
 """
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from sqlmodel import Session
 
 from database import create_task_db

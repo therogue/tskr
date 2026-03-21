@@ -7,11 +7,7 @@ Coverage:
 - strip_markdown_: JSON extraction from LLM response
 - execute_operation sad paths: missing task, missing title, unknown operation
 """
-import sys
-import os
 import pytest
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import create_task_db, get_all_tasks
 from prompts import SYSTEM_PROMPT

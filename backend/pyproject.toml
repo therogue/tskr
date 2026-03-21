@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "llm: tests that make real LLM API calls (need --run-llm to run)",
+]

@@ -68,10 +68,19 @@ alembic upgrade head
 
 ## Testing
 
-Backend (from `backend/`):
+Backend tests live in two directories under `backend/tests/`:
+
+| Directory | Contents | API calls? |
+|-----------|----------|------------|
+| `tests/unit/` | Deterministic unit & integration tests | No |
+| `tests/llm/` | LLM-as-a-judge tests (real Anthropic calls) | Yes |
+
+Run from `backend/`:
 
 ```bash
-pytest
+pytest                     # unit tests only (default, safe for CI)
+pytest --run-llm           # everything including LLM tests
+pytest -m llm --run-llm    # LLM tests only
 ```
 
 Frontend (from `frontend/`):

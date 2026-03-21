@@ -2,11 +2,6 @@
 Tests for build_schedule_context() in scheduling.py.
 Tests gap calculation and schedule formatting for auto-scheduling.
 """
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from models import Task
 from scheduling import build_schedule_context
 

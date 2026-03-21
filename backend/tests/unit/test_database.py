@@ -3,10 +3,6 @@ Tests for database.py - task CRUD, recurrence calculation, task numbering.
 """
 import json
 import pytest
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlmodel import Session
 

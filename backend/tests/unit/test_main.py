@@ -3,10 +3,6 @@ Tests for main.py functionality.
 Tests that don't require API client (for /chat endpoint mocking would be needed).
 """
 import pytest
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import create_task_db, get_all_tasks, get_tasks_for_date, update_task_db
 from main import execute_operation

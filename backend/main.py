@@ -9,8 +9,8 @@ import anthropic
 from dotenv import load_dotenv
 
 from models import Task, TaskUpdate, ChatRequest, UserSettingsRead, UserSettingsUpdate
-from prompts import SYSTEM_PROMPT
-from scheduling import build_schedule_context
+from prompts import TITLE_PROMPT
+from graph import GraphState, chat_graph
 from database import (
     init_db,
     get_all_tasks,
@@ -299,75 +299,43 @@ def execute_operation(
 
 @app.post("/chat")
 async def chat(chat_request: ChatRequest) -> dict:
-    """Process user message through Claude and execute task operations."""
+    """Process user message through the LangGraph intent pipeline."""
 
     if not ANTHROPIC_API_KEY or ANTHROPIC_API_KEY == "your-api-key-here":
         return {"response": "API key not configured", "tasks": get_all_tasks()}
 
-    # Convert messages to Claude API format
-    api_messages = [
-        {"role": m.role, "content": m.content} for m in chat_request.messages
-    ]
-
-    # Insert today's date into the system prompt
     today = datetime.now().strftime("%Y-%m-%d")
-    system_prompt = SYSTEM_PROMPT.format(today=today)
+    api_messages = [{"role": m.role, "content": m.content} for m in chat_request.messages]
+    user_message = api_messages[-1]["content"] if api_messages else ""
 
-    # Inject user defaults so Claude uses them when the user doesn't specify
     settings = get_user_settings()
-    system_prompt += (
-        f"\n\nUser-configured defaults — use these exactly; do not estimate or override:"
-        f"\n- Default category: {settings.default_category}"
-        f"\n- Default priority: {settings.default_priority} (ignore task description when assigning priority; always use this value unless the user explicitly states a different priority)"
-    )
 
-    # Add current tasks to system prompt for context
-    tasks = get_all_tasks()
-    if tasks:
-        task_list = "\n".join(
-            [f"- {task.task_key}: {task.title}" for task in tasks if not task.completed]
-        )
-        system_prompt += f"\n\nCurrent incomplete tasks:\n{task_list}"
+    initial_state: GraphState = {
+        "messages": api_messages,
+        "user_message": user_message,
+        "today": today,
+        "intent": "",
+        "extracted_context": "",
+        "target_date": "",
+        "relevant_tasks": [],
+        "operation_result": {},
+        "final_response": "",
+        "default_category": settings.default_category,
+        "default_priority": settings.default_priority,
+        "conflict_resolution": settings.conflict_resolution,
+    }
 
-    # Add today's schedule context for auto-scheduling
-    today_tasks = get_tasks_for_date(today, today)
-    schedule_context = build_schedule_context(today_tasks)
-    if schedule_context:
-        system_prompt += schedule_context
+    result = await chat_graph.ainvoke(initial_state)
+    response_message = result["final_response"]
 
-    # Call Claude API
-    try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=256,
-            system=system_prompt,
-            messages=api_messages,
-        )
-    except anthropic.APIError as e:
-        return {"response": f"API error: {e}", "tasks": get_all_tasks()}
-
-    ai_text = response.content[0].text
-    print(f"Claude response: {ai_text}")
-
-    try:
-        parsed = json.loads(strip_markdown_(ai_text))
-    except json.JSONDecodeError:
-        return {"response": "Failed to parse AI response", "tasks": get_all_tasks()}
-
-    message = execute_operation(parsed, today, settings.conflict_resolution)
-
-    # Save conversation with assistant response
-    conversation = [
-        {"role": m.role, "content": m.content} for m in chat_request.messages
-    ]
-    conversation.append({"role": "assistant", "content": message})
+    conversation = api_messages.copy()
+    conversation.append({"role": "assistant", "content": response_message})
 
     title: str | None = None
     if chat_request.conversation_id is not None:
         conv = load_conversation(chat_request.conversation_id)
 
         if conv:
-            # Determine title if this is an untitled conversation
             new_title: str | None = None
             if conv.title == "Untitled":
                 new_title = await generate_conversation_title(conversation)
@@ -379,7 +347,7 @@ async def chat(chat_request: ChatRequest) -> dict:
             save_conversation(chat_request.conversation_id, json.dumps(conversation), title=new_title)
             title = new_title or conv.title
 
-    return {"response": message, "tasks": get_all_tasks(), "title": title}
+    return {"response": response_message, "tasks": get_all_tasks(), "title": title}
 
 
 if __name__ == "__main__":

@@ -9,3 +9,4 @@ sqlmodel
 pytest
 pytest-asyncio
 httpx
+langgraph

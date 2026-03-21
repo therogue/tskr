@@ -4,6 +4,69 @@ Generate a concise, human-friendly title (5 words or fewer) that captures their 
 Examples: 'Grocery shopping task', 'Park visit planning', 'Team meeting setup', 'Weekly task review'.
 Plain text only — no markdown, no asterisks, no quotes, no trailing punctuation."""
 
+INTENT_PROMPT = """You are an intent classifier for a task management assistant.
+
+Given the conversation history and the latest user message, classify the user's intent into exactly one of:
+- "task_operation": user wants to create, update, complete, or delete a task
+- "clarification_answer": user is answering a question the assistant asked in the previous turn
+- "reschedule": user wants to move one or more existing tasks to a different date or time
+
+CRITICAL — Clarification detection:
+- If the IMMEDIATELY PRECEDING assistant message ends with a question (e.g. "What title?", "When should I schedule it?", "Which task?"), and the user's latest message is a short/direct answer to that question (a date, time, name, "yes", "no", etc.), classify as "clarification_answer".
+- A bare time like "3pm", a date like "tomorrow", or a title like "buy milk" IS a clarification answer when it directly responds to an assistant question — NOT a new task_operation.
+
+Also extract any relevant context: task keys (e.g. T-01), task titles, dates, or times mentioned.
+
+Resolve "target_date" to YYYY-MM-DD by scanning the FULL conversation history — not just the latest message. The date may have been stated in an earlier turn (e.g. "create a meeting on Wednesday" followed by "rename it"). If any turn in the conversation establishes which date the task is on, use that date. If no date can be determined from any turn, set "target_date" to null.
+
+Respond with JSON only:
+{{
+    "intent": "task_operation" | "clarification_answer" | "reschedule",
+    "extracted_context": "brief note of key entities mentioned (task keys, titles, dates, times)",
+    "target_date": "YYYY-MM-DD" or null
+}}
+
+Only respond with valid JSON, no other text.
+Today's date is: {today}
+"""
+
+RESCHEDULE_PROMPT = """You are a task rescheduling assistant. The user wants to move one or more existing tasks to a different date or time.
+
+Given the conversation history and the task list below, identify which task(s) to reschedule and the new date/time.
+
+CRITICAL — Task identification rules:
+1. Find the task title mentioned or implied in the conversation (e.g. "it", "that meeting", or an explicit name).
+2. Look up that title in the task list below to get the correct task_key.
+3. NEVER guess or infer a task_key from prior conversation turns. ALWAYS derive it from the task list.
+4. If multiple tasks could match, pick the one whose title best matches what the user said.
+
+Date/time formatting:
+- Date only: YYYY-MM-DD
+- Date with time: YYYY-MM-DDTHH:MM (24-hour format)
+- Convert relative dates like "today", "tomorrow", "next Monday" to absolute dates
+- Convert times: "3pm" → "15:00", "9:30am" → "09:30"
+
+Current tasks:
+{task_list}
+
+Respond with JSON only:
+{{
+    "reschedules": [
+        {{"task_key": "T-01", "new_scheduled_date": "YYYY-MM-DDTHH:MM"}}
+    ],
+    "message": "friendly confirmation of what was rescheduled"
+}}
+
+If you cannot identify the task or the new time clearly, respond with:
+{{
+    "reschedules": [],
+    "message": "clarifying question to the user"
+}}
+
+Only respond with valid JSON, no other text.
+Today's date is: {today}
+"""
+
 # System prompt for task decomposition
 # Categories: T=regular tasks, D=daily tasks, M=meetings, or user-defined
 # Scheduling: tasks can have scheduled_date in ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM)
@@ -76,7 +139,8 @@ Auto-scheduling (for tasks created for today without a specific time):
 Respond with this exact JSON format:
 {{
     "operation": "create" | "update" | "delete",
-    "title": "task title here",
+    "task_key": "M-01" (REQUIRED for update/delete — look up from the task list below),
+    "title": "task title here (for create: the new title; for update: the new title if renaming, otherwise omit)",
     "category": "T" | "D" | "M" | custom,
     "scheduled_date": "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" or null,
     "recurrence_rule": "pattern" or null,
@@ -86,13 +150,10 @@ Respond with this exact JSON format:
     "message": "friendly response to user (for create operations, mention the estimated duration and assigned priority)"
 }}
 
-For update/delete operations, you can use "task_key" instead of "title" to identify the task (e.g., "M-01").
-For update operation, include any fields to change. Only fields provided will be updated.
-Task identification:
-- You will receive a list of current tasks with their task_key and title
-- Use task_key for reliable identification (e.g., "M-01")
-- Or match by title from the provided task list
-- For complete/delete/schedule/set_recurrence/remove_recurrence operations, use task_key when available
+CRITICAL — Update/delete identification rules:
+- ALWAYS include "task_key" for update and delete operations. Look it up from the current task list.
+- "title" is ONLY the new title when renaming. Do NOT use "title" to identify the task.
+- Never include "title" twice in the JSON. Use "task_key" to identify, "title" to rename.
 
 If the request is unclear or not a task operation, respond with:
 {{
