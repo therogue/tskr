@@ -124,6 +124,7 @@ body {
   display: flex;
   border-bottom: 1px solid #2a3f5f;
   background: #152238;
+  min-height: 2.75rem;
 }
 
 .tab {
@@ -135,6 +136,8 @@ body {
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
 }
 
 .tab:hover {
@@ -169,6 +172,9 @@ body {
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .date-nav-btn:hover {
@@ -527,10 +533,35 @@ body {
 
 /* Chat Panel */
 .chat-panel {
-  flex: 1;
+  flex: 0 0 50%;
   background: #1b2838;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  transition: flex-basis 0.3s ease;
+}
+
+.chat-panel.collapsed {
+  flex-basis: 36px;
+}
+
+.chat-panel .chat-header h2,
+.chat-panel .chat-header-actions {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.chat-panel.collapsed .chat-header h2,
+.chat-panel.collapsed .chat-header-actions {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chat-panel.collapsed .chat-messages,
+.chat-panel.collapsed .chat-input-form {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .chat-header {
@@ -539,6 +570,27 @@ body {
   justify-content: space-between;
   padding: 0.5rem;
   border-bottom: 1px solid #2a3f5f;
+  flex-shrink: 0;
+  min-height: 2.75rem;
+}
+
+.chat-collapse-btn {
+  padding: 0.25rem 0.5rem;
+  background: #253545;
+  color: #a0b0c0;
+  border: 1px solid #3a4f6f;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chat-collapse-btn:hover {
+  background: #3a4f6f;
+  color: #e8e8e8;
 }
 
 .chat-header h2 {

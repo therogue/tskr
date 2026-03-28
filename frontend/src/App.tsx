@@ -34,6 +34,19 @@ function App() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('day')
   const [showSettings, setShowSettings] = useState(false)
+  
+  const CHAT_COLLAPSED_KEY = 'chatCollapsed'
+  const [chatCollapsed, setChatCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem(CHAT_COLLAPSED_KEY) === 'true'
+  })
+
+  function handleToggleChat() {
+    setChatCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem(CHAT_COLLAPSED_KEY, String(next))
+      return next
+    })
+  }
 
   // Get today's date in YYYY-MM-DD format
   const todayStr = formatDateStr(new Date())
@@ -89,7 +102,7 @@ function App() {
           onDateChange={setSelectedDate}
           onTasksUpdate={handleTasksUpdate}
         />
-        <ChatInterface onTasksUpdate={handleTasksUpdate} />
+        <ChatInterface onTasksUpdate={handleTasksUpdate} collapsed={chatCollapsed} onToggleCollapse={handleToggleChat} />
       </main>
     </div>
   )

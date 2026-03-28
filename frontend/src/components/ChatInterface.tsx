@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 
 interface ChatInterfaceProps {
   onTasksUpdate: () => void
+  collapsed: boolean
+  onToggleCollapse: () => void
 }
 
 interface Message {
@@ -22,7 +24,7 @@ interface HistoryPopup {
 
 const API_URL = 'http://localhost:8000'
 
-function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
+function ChatInterface({ onTasksUpdate, collapsed, onToggleCollapse }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [input, setInput] = useState('')
@@ -144,8 +146,16 @@ function ChatInterface({ onTasksUpdate }: ChatInterfaceProps) {
   }
 
   return (
-    <div className="chat-panel">
+    <div className={`chat-panel${collapsed ? ' collapsed' : ''}`}>
       <div className="chat-header">
+        <button
+          className="chat-collapse-btn"
+          onClick={onToggleCollapse}
+          title={collapsed ? 'Expand chat' : 'Collapse chat'}
+          type="button"
+        >
+          {collapsed ? '<' : '>'}
+        </button>
         <h2>Chat</h2>
         <div className="chat-header-actions">
           <button
