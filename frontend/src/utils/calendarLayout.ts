@@ -1,5 +1,28 @@
 // Fallback duration when duration_minutes is null. Assumption: matches TaskList.tsx DEFAULT_DURATION.
 export const DEFAULT_DURATION = 30 // minutes
+export const HOUR_HEIGHT_PX = 60 // px per hour; 1px per minute — must match TaskList.tsx HOUR_HEIGHT
+export const SNAP_MINUTES = 15 // drag snap increment
+
+/**
+ * Convert a pixel offset from the top of the calendar grid to a snapped minute-of-day.
+ * Clamps to [0, 1439].
+ * Assumption: HOUR_HEIGHT_PX = 60 (1px per minute).
+ */
+export function pxToSnappedMinutes(px: number): number {
+  const raw = Math.round(px) // 1px == 1 minute
+  const snapped = Math.round(raw / SNAP_MINUTES) * SNAP_MINUTES
+  return Math.max(0, Math.min(1439, snapped))
+}
+
+/**
+ * Format a minute-of-day as HH:MM.
+ * Assumption: minutes is in [0, 1439].
+ */
+export function minutesToTimeStr(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
 
 // Minimal task shape required by computeColumnLayout
 interface ScheduledTask {
