@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeColumnLayout, DEFAULT_DURATION } from './calendarLayout'
+import { computeColumnLayout, DEFAULT_DURATION, pxToSnappedMinutes, minutesToTimeStr } from './calendarLayout'
 
 // Minimal task stub. Assumption: scheduled_date is YYYY-MM-DDTHH:MM.
 function task(time: string, duration: number | null = 30) {
@@ -68,4 +68,32 @@ describe('computeColumnLayout', () => {
     expect(result[1].colCount).toBe(2)
     expect(result[0].colIndex).not.toBe(result[1].colIndex)
   })
+})
+
+describe('pxToSnappedMinutes', () => {
+  it('snaps to nearest 15-minute mark', () => {
+    expect(pxToSnappedMinutes(0)).toBe(0)      // 00:00
+    expect(pxToSnappedMinutes(60)).toBe(60)    // 01:00 exactly
+    expect(pxToSnappedMinutes(547)).toBe(540)  // 9:07 raw → 9:00 (540 is closer than 555)
+    expect(pxToSnappedMinutes(553)).toBe(555)  // 9:13 raw → 9:15
+    expect(pxToSnappedMinutes(540)).toBe(540)  // 9:00 exactly
+    expect(pxToSnappedMinutes(555)).toBe(555)  // 9:15 exactly
+  })
+
+  it('clamps below 0 to 0', () => {
+    expect(pxToSnappedMinutes(-100)).toBe(0)
+  })
+
+  it('clamps above max to 1439', () => {
+    // snap(1500)=1500, clamp→1439; snap(1440)=1440, clamp→1439
+    expect(pxToSnappedMinutes(1500)).toBe(1439)
+    expect(pxToSnappedMinutes(1440)).toBe(1439)
+  })
+})
+
+describe('minutesToTimeStr', () => {
+  it('formats midnight', () => expect(minutesToTimeStr(0)).toBe('00:00'))
+  it('formats noon', () => expect(minutesToTimeStr(720)).toBe('12:00'))
+  it('formats 9:05', () => expect(minutesToTimeStr(545)).toBe('09:05'))
+  it('formats 23:59', () => expect(minutesToTimeStr(1439)).toBe('23:59'))
 })

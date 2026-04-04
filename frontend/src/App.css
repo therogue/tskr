@@ -404,6 +404,64 @@ body {
   border-color: #ff6b6b;
 }
 
+.day-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.reschedule-selected-btn {
+  padding: 0.25rem 0.75rem;
+  background: transparent;
+  color: #6b8cce;
+  border: 1px solid #6b8cce;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.reschedule-selected-btn:hover {
+  background: rgba(107, 140, 206, 0.15);
+  color: #8aaae0;
+  border-color: #8aaae0;
+}
+
+.reschedule-popup {
+  min-width: 220px;
+}
+
+.reschedule-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.reschedule-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: #8090a0;
+}
+
+.reschedule-input {
+  background: #0d1b2a;
+  border: 1px solid #2a3f5f;
+  border-radius: 4px;
+  color: #e8e8e8;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.reschedule-input:focus {
+  outline: none;
+  border-color: #6b8cce;
+}
+
 /* Calendar View */
 .calendar-unscheduled {
   margin-bottom: 1rem;
@@ -453,10 +511,17 @@ body {
   align-items: flex-start;
   gap: 4px;
   font-size: 0.8rem;
-  cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  cursor: grab;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.calendar-task-block.dragging {
+  cursor: grabbing;
+  opacity: 0.75;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  border-color: #6b8cce;
+  transition: none; /* disable transition during drag for responsiveness */
 }
 .calendar-task-block.selected {
   border: 2px solid #6b8cce;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { computeColumnLayout, DEFAULT_DURATION } from '../utils/calendarLayout'
+import { computeColumnLayout, DEFAULT_DURATION, pxToSnappedMinutes, minutesToTimeStr } from '../utils/calendarLayout'
 
 interface Task {
   id: string
@@ -115,6 +115,27 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
   const orderedVisibleTasksRef = useRef<Task[]>([])
   const [confirmDelete, setConfirmDelete] = useState<{ message: string; ids: string[]; x: number; y: number } | null>(null)
 
+  // Drag state: stored in ref to avoid re-renders on every pointermove
+  interface DragData {
+    taskId: string
+    element: HTMLElement
+    startClientY: number
+    startTopPx: number
+    currentTopPx: number
+    hasMoved: boolean
+    // For group drag: other selected task ids → their original top px
+    groupOrigTops: Map<string, number>
+  }
+  const dragStateRef = useRef<DragData | null>(null)
+  const dragJustFinishedRef = useRef(false)
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
+  // Map of task id → calendar block DOM element, for group drag visual
+  const taskBlockRefsMap = useRef<Map<string, HTMLElement>>(new Map())
+
+  // Bulk reschedule popup
+  const [reschedulePopup, setReschedulePopup] = useState<{ x: number; y: number } | null>(null)
+  const [rescheduleDate, setRescheduleDate] = useState<string>('')
+
   // Auto-scroll calendar to ~8am when switching to calendar view
   useEffect(() => {
     if (dayViewMode === 'calendar' && calendarRef.current) {
@@ -211,6 +232,163 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
       })
       lastClickedIndexRef.current = indexInOrdered
     }
+  }
+
+  function handleDragStart(e: React.PointerEvent, task: Task, startTopPx: number) {
+    // Only drag timed tasks; ignore clicks on interactive children
+    if (!task.scheduled_date?.includes('T')) return
+    if ((e.target as HTMLElement).closest('.task-checkbox, .task-delete-btn')) return
+    // Do NOT call e.preventDefault() here — it would suppress the subsequent click
+    // event and break task selection. Text selection is prevented in handleDragMove
+    // once the movement threshold is crossed.
+
+    const el = e.currentTarget as HTMLElement
+    el.setPointerCapture(e.pointerId)
+
+    // Precompute original top positions for other selected timed tasks (group drag)
+    const groupOrigTops = new Map<string, number>()
+    if (selectedIds.has(task.id) && selectedIds.size > 1) {
+      for (const id of selectedIds) {
+        if (id === task.id) continue
+        const t = tasks.find(t => t.id === id)
+        if (t?.scheduled_date?.includes('T')) {
+          const timePart = t.scheduled_date.slice(11, 16)
+          const [h, m] = timePart.split(':').map(Number)
+          groupOrigTops.set(id, h * HOUR_HEIGHT + m * (HOUR_HEIGHT / 60))
+        }
+      }
+    }
+
+    dragStateRef.current = {
+      taskId: task.id,
+      element: el,
+      startClientY: e.clientY,
+      startTopPx,
+      currentTopPx: startTopPx,
+      hasMoved: false,
+      groupOrigTops,
+    }
+  }
+
+  function handleDragMove(e: React.PointerEvent) {
+    const ds = dragStateRef.current
+    if (!ds || ds.taskId !== (e.currentTarget as HTMLElement).dataset.taskId) return
+
+    const deltaY = e.clientY - ds.startClientY
+    if (!ds.hasMoved && Math.abs(deltaY) < 5) return
+
+    // Prevent text selection and scroll during drag (safe here — pointermove
+    // preventDefault does NOT suppress the click event, unlike pointerdown)
+    e.preventDefault()
+
+    if (!ds.hasMoved) {
+      ds.hasMoved = true
+      setDraggingTaskId(ds.taskId)
+    }
+
+    const rawTop = ds.startTopPx + deltaY
+    const snappedMinutes = pxToSnappedMinutes(rawTop)
+    ds.currentTopPx = snappedMinutes // 1px == 1 minute
+    ds.element.style.top = `${snappedMinutes}px`
+
+    // Move other selected tasks by the same raw delta
+    for (const [id, origTop] of ds.groupOrigTops) {
+      const otherEl = taskBlockRefsMap.current.get(id)
+      if (otherEl) otherEl.style.top = `${pxToSnappedMinutes(origTop + deltaY)}px`
+    }
+  }
+
+  async function handleDragEnd(e: React.PointerEvent, task: Task) {
+    const ds = dragStateRef.current
+    if (!ds || ds.taskId !== task.id) return
+
+    const wasDragging = ds.hasMoved
+    dragStateRef.current = null
+    setDraggingTaskId(null)
+
+    if (!wasDragging) return
+
+    // Suppress the click that fires after pointerup
+    dragJustFinishedRef.current = true
+
+    const snappedMinutes = pxToSnappedMinutes(ds.currentTopPx)
+    const newTime = minutesToTimeStr(snappedMinutes)
+    const datePart = task.scheduled_date!.slice(0, 10)
+    const deltaMinutes = snappedMinutes - ds.startTopPx // startTopPx is in px == minutes
+
+    const patches: Promise<Response>[] = [
+      fetch(`${API_URL}/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduled_date: `${datePart}T${newTime}` }),
+      }),
+    ]
+
+    // Patch other selected timed tasks by the same delta
+    for (const [id, origTop] of ds.groupOrigTops) {
+      const t = tasks.find(t => t.id === id)
+      if (!t?.scheduled_date?.includes('T')) continue
+      const newMinutes = pxToSnappedMinutes(origTop + deltaMinutes)
+      const tDatePart = t.scheduled_date.slice(0, 10)
+      patches.push(
+        fetch(`${API_URL}/tasks/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scheduled_date: `${tDatePart}T${minutesToTimeStr(newMinutes)}` }),
+        })
+      )
+    }
+
+    try {
+      await Promise.all(patches)
+      onTasksUpdate()
+    } catch {
+      // Ignore errors
+    }
+  }
+
+  function handleDragCancel() {
+    const ds = dragStateRef.current
+    if (!ds) return
+    ds.element.style.top = `${ds.startTopPx}px`
+    for (const [id, origTop] of ds.groupOrigTops) {
+      const otherEl = taskBlockRefsMap.current.get(id)
+      if (otherEl) otherEl.style.top = `${origTop}px`
+    }
+    dragStateRef.current = null
+    setDraggingTaskId(null)
+  }
+
+  function openReschedulePopup(e: React.MouseEvent) {
+    setRescheduleDate(selectedDate)
+    setReschedulePopup({ x: e.clientX, y: e.clientY })
+  }
+
+  async function applyReschedule() {
+    if (!rescheduleDate) return
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id => {
+          const t = tasks.find(t => t.id === id)
+          // Preserve existing time if the task has one; otherwise use date-only
+          const existingTime = t?.scheduled_date?.includes('T')
+            ? t.scheduled_date.slice(11, 16)
+            : null
+          const newScheduledDate = existingTime
+            ? `${rescheduleDate}T${existingTime}`
+            : rescheduleDate
+          return fetch(`${API_URL}/tasks/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scheduled_date: newScheduledDate }),
+          })
+        })
+      )
+      onTasksUpdate()
+    } catch {
+      // Ignore errors
+    }
+    setReschedulePopup(null)
   }
 
   function formatDateTime(dateStr: string | null): string {
@@ -416,11 +594,13 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
               const duration = task.duration_minutes || DEFAULT_DURATION
               const heightPx = duration * (HOUR_HEIGHT / 60)
 
+              const isDraggingThis = draggingTaskId === task.id
               const classes = [
                 'calendar-task-block',
                 task.completed ? 'completed' : '',
                 task.is_template ? 'projected' : '',
-                isSelected ? 'selected' : ''
+                isSelected ? 'selected' : '',
+                isDraggingThis ? 'dragging' : '',
               ].filter(Boolean).join(' ')
 
               const { colIndex, colCount } = layouts[i]
@@ -436,9 +616,21 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
                 <div
                   key={task.id + (task.is_template ? '-template' : '')}
                   className={classes}
+                  data-task-id={task.id}
+                  ref={(el) => {
+                    if (el) taskBlockRefsMap.current.set(task.id, el)
+                    else taskBlockRefsMap.current.delete(task.id)
+                  }}
                   style={{ top: topPx, height: Math.max(heightPx, 16), ...overlapStyle }}
                   onMouseDown={(e) => e.shiftKey && e.preventDefault()}
-                  onClick={(e) => handleSelectBoxClick(task, indexInOrdered, e)}
+                  onClick={(e) => {
+                    if (dragJustFinishedRef.current) { dragJustFinishedRef.current = false; return }
+                    handleSelectBoxClick(task, indexInOrdered, e)
+                  }}
+                  onPointerDown={(e) => handleDragStart(e, task, topPx)}
+                  onPointerMove={handleDragMove}
+                  onPointerUp={(e) => handleDragEnd(e, task)}
+                  onPointerCancel={handleDragCancel}
                 >
                   <input
                     type="checkbox"
@@ -512,9 +704,14 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
             >Calendar</button>
           </div>
           {selectedIds.size > 0 && (
-            <button type="button" className="delete-selected-btn" onClick={handleDeleteSelected}>
-              <TrashIcon /> Delete
-            </button>
+            <div className="day-view-actions">
+              <button type="button" className="reschedule-selected-btn" onClick={openReschedulePopup}>
+                Reschedule
+              </button>
+              <button type="button" className="delete-selected-btn" onClick={handleDeleteSelected}>
+                <TrashIcon /> Delete
+              </button>
+            </div>
           )}
         </div>
         {dayViewMode === 'list' ? (
@@ -690,6 +887,34 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
           <div className="confirm-actions">
             <button type="button" className="confirm-cancel-btn" onClick={() => setConfirmDelete(null)}>Cancel</button>
             <button type="button" className="confirm-delete-btn" onClick={() => confirmDeleteAction(confirmDelete.ids)}>Delete</button>
+          </div>
+        </div>
+      )}
+
+      {reschedulePopup && (
+        <div
+          className="confirm-popup reschedule-popup"
+          style={{
+            left: reschedulePopup.x,
+            top: Math.max(8, Math.min(reschedulePopup.y, window.innerHeight - 160)),
+            transform: 'translateX(-100%)',
+          }}
+        >
+          <p className="confirm-message">Reschedule {selectedIds.size} task{selectedIds.size !== 1 ? 's' : ''}</p>
+          <div className="reschedule-fields">
+            <label className="reschedule-label">
+              Date
+              <input
+                type="date"
+                className="reschedule-input"
+                value={rescheduleDate}
+                onChange={e => setRescheduleDate(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="confirm-actions">
+            <button type="button" className="confirm-cancel-btn" onClick={() => setReschedulePopup(null)}>Cancel</button>
+            <button type="button" className="confirm-delete-btn" onClick={applyReschedule} disabled={!rescheduleDate}>Apply</button>
           </div>
         </div>
       )}
