@@ -24,10 +24,10 @@ Display the task's `created_at` date in a tooltip when hovering over the task ro
 
 **Affected code:** `frontend/src/components/TaskList.tsx` — task row element (add `title` attribute)
 
-### 6. Clear selection state after deleting tasks
-After deleting selected tasks, `selectedIds` is not cleared, so the "delete multiple" button remains visible even though the tasks are gone.
+### 6. Clear selection after other actions and tab changes
+`selectedIds` should clear after operations such as marking complete or reschedule, and when switching views (e.g. day → backlog). (Delete handling is separate.)
 
-**Fix:** Clear `selectedIds` after a successful delete operation.
+**Fix:** Clear `selectedIds` on successful complete/reschedule and on `viewMode` (tab) changes. See `docs/github-issues.md` — Issue 8.
 
 ### 7. "Delete multiple" button should require 2+ selected tasks
 The bulk delete button currently shows when a single task is selected. It should only appear when `selectedIds.size > 1`.
