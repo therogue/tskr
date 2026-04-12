@@ -1,5 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
 import { computeColumnLayout, DEFAULT_DURATION, pxToSnappedMinutes, minutesToTimeStr } from '../utils/calendarLayout'
+import { formatTaskCreationDate } from '../utils/date'
+
+// Shared wrapper that shows a "Created: ..." tooltip on hover (Issue #68)
+function TaskSurface({ createdAt, children, className = "", style = {} }: { createdAt: string, children: React.ReactNode, className?: string, style?: React.CSSProperties }) {
+  return (
+    <div
+      className={className}
+      title={`Created: ${formatTaskCreationDate(createdAt)}`}
+      style={style}
+    >
+      {children}
+    </div>
+  );
+}
 
 interface Task {
   id: string
@@ -123,13 +137,13 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     startTopPx: number
     currentTopPx: number
     hasMoved: boolean
-    // For group drag: other selected task ids → their original top px
+    // For group drag: other selected task ids -> their original top px
     groupOrigTops: Map<string, number>
   }
   const dragStateRef = useRef<DragData | null>(null)
   const dragJustFinishedRef = useRef(false)
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
-  // Map of task id → calendar block DOM element, for group drag visual
+  // Map of task id -> calendar block DOM element, for group drag visual
   const taskBlockRefsMap = useRef<Map<string, HTMLElement>>(new Map())
 
   // Bulk reschedule popup
@@ -238,7 +252,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     // Only drag timed tasks; ignore clicks on interactive children
     if (!task.scheduled_date?.includes('T')) return
     if ((e.target as HTMLElement).closest('.task-checkbox, .task-delete-btn')) return
-    // Do NOT call e.preventDefault() here — it would suppress the subsequent click
+    // Do NOT call e.preventDefault() here - it would suppress the subsequent click
     // event and break task selection. Text selection is prevented in handleDragMove
     // once the movement threshold is crossed.
 
@@ -277,7 +291,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     const deltaY = e.clientY - ds.startClientY
     if (!ds.hasMoved && Math.abs(deltaY) < 5) return
 
-    // Prevent text selection and scroll during drag (safe here — pointermove
+    // Prevent text selection and scroll during drag (safe here - pointermove
     // preventDefault does NOT suppress the click event, unlike pointerdown)
     e.preventDefault()
 
@@ -441,27 +455,29 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
         onMouseDown={(e) => e.shiftKey && e.preventDefault()}
         onClick={(e) => handleSelectBoxClick(task, indexInOrdered, e)}
       >
-        <input
-          type="checkbox"
-          className="task-checkbox"
-          checked={task.completed}
-          onChange={() => handleToggle(task)}
-          onClick={(e) => e.stopPropagation()}
-        />
-        <span className="task-key">{task.task_key}</span>
-        <PriorityBadge priority={task.priority} />
-        <span className="task-title">{task.title}</span>
-        {formatDuration(task.duration_minutes) && (
-          <span className="task-duration">{formatDuration(task.duration_minutes)}</span>
-        )}
-        {task.recurrence_rule && (
-          <span className="task-recurring" title={`Repeats: ${task.recurrence_rule}`}>&#x21bb;</span>
-        )}
-        {task.scheduled_date && (
-          <span className="task-date">
-            {showDate ? formatDateTime(task.scheduled_date) : formatTime(task.scheduled_date)}
-          </span>
-        )}
+        <TaskSurface createdAt={task.created_at} className="task-item-surface-wrapper">
+          <input
+            type="checkbox"
+            className="task-checkbox"
+            checked={task.completed}
+            onChange={() => handleToggle(task)}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <span className="task-key">{task.task_key}</span>
+          <PriorityBadge priority={task.priority} />
+          <span className="task-title">{task.title}</span>
+          {formatDuration(task.duration_minutes) && (
+            <span className="task-duration">{formatDuration(task.duration_minutes)}</span>
+          )}
+          {task.recurrence_rule && (
+            <span className="task-recurring" title={`Repeats: ${task.recurrence_rule}`}>&#x21bb;</span>
+          )}
+          {task.scheduled_date && (
+            <span className="task-date">
+              {showDate ? formatDateTime(task.scheduled_date) : formatTime(task.scheduled_date)}
+            </span>
+          )}
+        </TaskSurface>
         <button
           type="button"
           className="task-delete-btn"
@@ -613,10 +629,13 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
               } : {}
 
               return (
+                // ref is on this outer element (position: absolute + top) so that
+                // drag's style.top writes to the correct node
                 <div
                   key={task.id + (task.is_template ? '-template' : '')}
                   className={classes}
                   data-task-id={task.id}
+                  title={`Created: ${formatTaskCreationDate(task.created_at)}`}
                   ref={(el) => {
                     if (el) taskBlockRefsMap.current.set(task.id, el)
                     else taskBlockRefsMap.current.delete(task.id)
