@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { computeColumnLayout, DEFAULT_DURATION, pxToSnappedMinutes, minutesToTimeStr } from '../utils/calendarLayout'
+import { formatTaskCreationDate } from '../utils/date'
 
 interface Task {
   id: string
@@ -90,7 +91,7 @@ function PriorityBadge({ priority }: { priority: number | null }) {
   return <span className={`priority-badge ${config.className}`} title={config.description}>{config.label}</span>
 }
 
-// Format duration_minutes for display (e.g. 90 -> "1h 30m", 60 -> "1h", 15 -> "15m")
+// Format duration_minutes for display (e.g. 90 → "1h 30m", 60 → "1h", 15 → "15m")
 function formatDuration(minutes: number | null): string | null {
   if (minutes === null || minutes === undefined || minutes <= 0) return null
   const h = Math.floor(minutes / 60)
@@ -438,6 +439,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
       <li
         key={task.id + (task.is_template ? '-template' : '')}
         className={classes}
+        title={`Created: ${formatTaskCreationDate(task.created_at)}`}
         onMouseDown={(e) => e.shiftKey && e.preventDefault()}
         onClick={(e) => handleSelectBoxClick(task, indexInOrdered, e)}
       >
@@ -617,6 +619,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
                   key={task.id + (task.is_template ? '-template' : '')}
                   className={classes}
                   data-task-id={task.id}
+                  title={`Created: ${formatTaskCreationDate(task.created_at)}`}
                   ref={(el) => {
                     if (el) taskBlockRefsMap.current.set(task.id, el)
                     else taskBlockRefsMap.current.delete(task.id)
@@ -753,8 +756,8 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     )
 
     // Recurrent section:
-    // - All Tasks: show templates (templates have completed=false)
-    // - Completed: show completed instances that have recurrence_rule (came from templates)
+    // — All Tasks: show templates (templates have completed=false)
+    // — Completed: show completed instances that have recurrence_rule (came from templates)
     const recurrent = completedFilter
       ? tasks.filter(t => t.completed && t.recurrence_rule && !t.is_template)
       : tasks.filter(t => t.is_template)
