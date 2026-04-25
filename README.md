@@ -6,9 +6,11 @@ Local task manager with AI-powered task management.
 
 ### Backend
 
+Install [uv](https://docs.astral.sh/uv/) if you don't have it, then:
+
 ```bash
 cd backend
-pip install -r requirements.txt
+uv sync
 ```
 
 Add your Anthropic API key to `.env`:
@@ -18,7 +20,7 @@ ANTHROPIC_API_KEY=your-actual-key
 
 Run:
 ```bash
-python main.py
+uv run python main.py
 ```
 
 Backend runs at http://localhost:8000
