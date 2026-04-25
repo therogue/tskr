@@ -74,6 +74,47 @@ class TestTaskEndpoints:
         assert response.status_code == 404
 
 
+class TestOverdueEndpoint:
+    """Tests for GET /tasks/overdue. Pins 'today' via monkeypatching main.datetime."""
+
+    def _pin_today(self, monkeypatch, today_str: str):
+        """Replace main.datetime so datetime.now() returns a fixed date."""
+        import main
+        from datetime import datetime as real_datetime
+
+        class _FrozenDatetime(real_datetime):
+            @classmethod
+            def now(cls, tz=None):
+                y, m, d = map(int, today_str.split("-"))
+                return real_datetime(y, m, d)
+
+        monkeypatch.setattr(main, "datetime", _FrozenDatetime)
+
+    def test_returns_overdue_tasks(self, test_db, app_client, monkeypatch):
+        self._pin_today(monkeypatch, "2025-06-15")
+        create_task_db("old-1", "Old task", "T", "2025-06-01")
+        create_task_db("today-1", "Today task", "T", "2025-06-15")
+        create_task_db("future-1", "Future task", "T", "2025-06-20")
+
+        response = app_client.get("/tasks/overdue")
+
+        assert response.status_code == 200
+        ids = [t["id"] for t in response.json()]
+        assert ids == ["old-1"]
+
+    def test_excludes_meetings_and_recurrent_instances(self, test_db, app_client, monkeypatch):
+        self._pin_today(monkeypatch, "2025-06-15")
+        create_task_db("mtg-1", "Old meeting", "M", "2025-06-01T09:00")
+        create_task_db("tpl-1", "Stretch", "D", "2025-06-01", "daily", is_template=True)
+        create_task_db("inst-1", "Stretch", "D", "2025-06-01", "daily",
+                       is_template=False, parent_task_id="tpl-1")
+
+        response = app_client.get("/tasks/overdue")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+
 class TestConversationEndpoint:
     """Tests for /conversation endpoint."""
 

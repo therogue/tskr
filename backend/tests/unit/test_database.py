@@ -14,6 +14,7 @@ from database import (
     delete_task_db,
     get_all_tasks,
     get_tasks_for_date,
+    get_overdue_tasks,
     find_task_by_title_db,
     find_task_by_key_db,
     get_next_task_number,
@@ -382,11 +383,11 @@ class TestTemplateStartDate:
         assert tasks[0].is_template is False
 
 
-class TestOverdueFiltering:
-    """Tests for overdue task filtering in day view."""
+class TestDayViewOverdueExclusion:
+    """Day view (get_tasks_for_date) excludes overdue tasks; they surface via get_overdue_tasks instead."""
 
     def test_overdue_recurrent_instance_excluded(self, test_db):
-        tpl = create_task_db("tpl-1", "Stretch", "D", "2025-06-01", "daily", is_template=True)
+        create_task_db("tpl-1", "Stretch", "D", "2025-06-01", "daily", is_template=True)
         create_task_db("inst-old", "Stretch", "D", "2025-06-01", "daily",
                        is_template=False, parent_task_id="tpl-1")
 
@@ -395,15 +396,16 @@ class TestOverdueFiltering:
 
         assert "inst-old" not in task_ids
 
-    def test_overdue_non_recurrent_task_included(self, test_db):
+    def test_overdue_non_recurrent_task_excluded(self, test_db):
+        """Overdue tasks no longer carry forward into today's day view."""
         create_task_db("task-1", "Buy groceries", "T", "2025-06-01")
 
         tasks = get_tasks_for_date("2025-06-15", "2025-06-15")
         task_ids = [t.id for t in tasks]
 
-        assert "task-1" in task_ids
+        assert "task-1" not in task_ids
 
-    def test_completed_non_recurrent_task_excluded(self, test_db):
+    def test_completed_overdue_task_excluded(self, test_db):
         create_task_db("task-1", "Buy groceries", "T", "2025-06-01")
         update_task_db("task-1", completed=True)
 
@@ -411,6 +413,77 @@ class TestOverdueFiltering:
         task_ids = [t.id for t in tasks]
 
         assert "task-1" not in task_ids
+
+
+class TestGetOverdueTasks:
+    """Tests for get_overdue_tasks: returns incomplete past-scheduled tasks excluding meetings/recurrent/templates."""
+
+    def test_returns_overdue_non_recurrent_task(self, test_db):
+        create_task_db("task-1", "Buy groceries", "T", "2025-06-01")
+
+        result = get_overdue_tasks("2025-06-15")
+
+        assert [t.id for t in result] == ["task-1"]
+
+    def test_excludes_today_scheduled_task(self, test_db):
+        create_task_db("task-1", "Today task", "T", "2025-06-15")
+
+        result = get_overdue_tasks("2025-06-15")
+
+        assert result == []
+
+    def test_excludes_future_scheduled_task(self, test_db):
+        create_task_db("task-1", "Future task", "T", "2025-06-20")
+
+        result = get_overdue_tasks("2025-06-15")
+
+        assert result == []
+
+    def test_excludes_completed_task(self, test_db):
+        create_task_db("task-1", "Done", "T", "2025-06-01")
+        update_task_db("task-1", completed=True)
+
+        result = get_overdue_tasks("2025-06-15")
+
+        assert result == []
+
+    def test_excludes_recurrent_instance(self, test_db):
+        create_task_db("tpl-1", "Stretch", "D", "2025-06-01", "daily", is_template=True)
+        create_task_db("inst-old", "Stretch", "D", "2025-06-01", "daily",
+                       is_template=False, parent_task_id="tpl-1")
+
+        result = get_overdue_tasks("2025-06-15")
+
+        assert [t.id for t in result] == []
+
+    def test_excludes_meetings(self, test_db):
+        create_task_db("mtg-1", "Standup", "M", "2025-06-01T09:00")
+
+        result = get_overdue_tasks("2025-06-15")
+
+        assert result == []
+
+    def test_excludes_template(self, test_db):
+        create_task_db("tpl-1", "Daily standup", "D", "2025-06-01", "daily", is_template=True)
+
+        result = get_overdue_tasks("2025-06-15")
+
+        assert result == []
+
+    def test_excludes_unscheduled_backlog_task(self, test_db):
+        create_task_db("task-1", "Someday", "T", None)
+
+        result = get_overdue_tasks("2025-06-15")
+
+        assert result == []
+
+    def test_handles_datetime_scheduled_date(self, test_db):
+        """scheduled_date with time portion (YYYY-MM-DDTHH:MM) compares on date prefix only."""
+        create_task_db("task-1", "Old timed task", "T", "2025-06-01T15:30")
+
+        result = get_overdue_tasks("2025-06-15")
+
+        assert [t.id for t in result] == ["task-1"]
 
 
 class TestConversation:

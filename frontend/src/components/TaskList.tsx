@@ -23,6 +23,8 @@ type DayViewMode = 'list' | 'calendar'
 
 interface TaskListProps {
   tasks: Task[]
+  // Overdue tasks shown above today's day view. Empty when not viewing today.
+  overdueTasks?: Task[]
   viewMode: ViewMode
   selectedDate: string
   todayStr: string
@@ -108,7 +110,7 @@ const SCROLL_TO_HOUR = 8 // auto-scroll to 8am on mount
 const LABEL_WIDTH = 55 // px
 const RIGHT_PAD = 8   // px
 
-function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, onDateChange, onTasksUpdate }: TaskListProps) {
+function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, onViewModeChange, onDateChange, onTasksUpdate }: TaskListProps) {
   const [dayViewMode, setDayViewMode] = useState<DayViewMode>('list')
   const calendarRef = useRef<HTMLDivElement>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -299,7 +301,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     }
   }
 
-  async function handleDragEnd(e: React.PointerEvent, task: Task) {
+  async function handleDragEnd(_e: React.PointerEvent, task: Task) {
     const ds = dragStateRef.current
     if (!ds || ds.taskId !== task.id) return
 
@@ -370,7 +372,8 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
     try {
       await Promise.all(
         Array.from(selectedIds).map(id => {
-          const t = tasks.find(t => t.id === id)
+          // Selection may include overdue tasks (rendered above today's day view) which are not in `tasks`.
+          const t = tasks.find(t => t.id === id) ?? overdueTasks.find(t => t.id === id)
           // Preserve existing time if the task has one; otherwise use date-only
           const existingTime = t?.scheduled_date?.includes('T')
             ? t.scheduled_date.slice(11, 16)
@@ -718,18 +721,29 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
           )}
         </div>
         {dayViewMode === 'list' ? (
-          isEmpty ? (
+          isEmpty && overdueTasks.length === 0 ? (
             <p className="empty-state">No tasks for this day.</p>
           ) : (
             <>
               {(() => {
-                const ordered = [...meetings, ...daily, ...other]
+                // Overdue first (only populated when viewing today, per App.tsx).
+                // showDate=true on overdue rows so users see the original scheduled date.
+                const ordered = [...overdueTasks, ...meetings, ...daily, ...other]
                 orderedVisibleTasksRef.current = ordered
+                let idx = 0
+                const overdueSection = renderSection('Overdue', overdueTasks, true, idx)
+                idx += overdueTasks.length
+                const meetingsSection = renderSection('Meetings', meetings, false, idx)
+                idx += meetings.length
+                const dailySection = renderSection('Daily', daily, false, idx)
+                idx += daily.length
+                const otherSection = renderSection('Tasks', other, false, idx)
                 return (
                   <>
-                    {renderSection('Meetings', meetings, false, 0)}
-                    {renderSection('Daily', daily, false, meetings.length)}
-                    {renderSection('Tasks', other, false, meetings.length + daily.length)}
+                    {overdueSection}
+                    {meetingsSection}
+                    {dailySection}
+                    {otherSection}
                   </>
                 )
               })()}

@@ -313,17 +313,29 @@ def get_tasks_for_date(target_date: str, today: str) -> list[Task]:
                         result.append(projection)
             continue
 
-        # Non-template tasks
+        # Non-template tasks: strict equality on scheduled date.
+        # Overdue tasks are surfaced via get_overdue_tasks(), not carried forward here.
         if scheduled_date_only == target_date:
             result.append(task)
-            continue
 
-        # For today only: include incomplete non-recurrent tasks with past scheduled_date (overdue)
-        # Excluded: recurrent instances (each day gets its own) and meetings (time-bound events)
-        if is_today and scheduled_date_only and scheduled_date_only < today and not task.completed and not task.parent_task_id and task.category != "M":
+    return result
+
+
+def get_overdue_tasks(today: str) -> list[Task]:
+    """
+    Return incomplete, non-recurrent, non-meeting tasks whose scheduled_date is before today.
+    Excludes templates, recurrent instances (parent_task_id set), meetings (M), and completed tasks.
+    today: YYYY-MM-DD. Compared lexicographically against scheduled_date[:10].
+    """
+    all_tasks = get_all_tasks()
+    result: list[Task] = []
+    for task in all_tasks:
+        if task.is_template or task.completed or task.parent_task_id or task.category == "M":
+            continue
+        if not task.scheduled_date:
+            continue
+        if task.scheduled_date[:10] < today:
             result.append(task)
-            continue
-
     return result
 
 

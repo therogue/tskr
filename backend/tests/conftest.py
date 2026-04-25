@@ -74,7 +74,10 @@ def app_client(test_db, monkeypatch):
     from fastapi.testclient import TestClient
     import main
 
-    monkeypatch.setattr(database, "init_db", lambda: None)
+    # main.py did `from database import init_db`, so the FastAPI lifespan calls
+    # main.init_db (a local binding to the original function). Patching
+    # database.init_db has no effect — patch main.init_db directly.
+    monkeypatch.setattr(main, "init_db", lambda: None)
 
     with TestClient(main.app) as client:
         yield client
