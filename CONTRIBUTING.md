@@ -2,16 +2,13 @@
 
 ## Branch workflow
 
-- `main` — stable, release-only. Never push directly.
-- `dev` — integration branch. All feature PRs target `dev`.
-- Feature branches — branch off `dev` using one of these prefixes:
+- `main` — trunk. All feature PRs target `main`.
+- Feature branches — branch off `main` using one of these prefixes:
   - `feature/<slug>` — new functionality
   - `fix/<slug>` — bug fixes
   - `chore/<slug>` — maintenance, tooling, docs
 
 Branch naming convention: `<issue-num>-<slug>` (e.g. `46-add-contributing-md`).
-
-Only `dev` → `main` merges represent releases.
 
 ## Local dev setup
 
