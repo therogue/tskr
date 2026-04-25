@@ -136,6 +136,12 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
   const [reschedulePopup, setReschedulePopup] = useState<{ x: number; y: number } | null>(null)
   const [rescheduleDate, setRescheduleDate] = useState<string>('')
 
+  // Clear selection when switching main tabs
+  useEffect(() => {
+    setSelectedIds(new Set())
+    lastClickedIndexRef.current = null
+  }, [viewMode])
+
   // Auto-scroll calendar to ~8am when switching to calendar view
   useEffect(() => {
     if (dayViewMode === 'calendar' && calendarRef.current) {
@@ -145,11 +151,9 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
 
   async function handleToggle(task: Task) {
     const newCompleted = !task.completed
+    const isBulk = selectedIds.has(task.id) && selectedIds.size > 1
+    const ids = isBulk ? Array.from(selectedIds) : [task.id]
     try {
-      // If task is part of a multi-selection, apply to all selected
-      const ids = selectedIds.has(task.id) && selectedIds.size > 1
-        ? Array.from(selectedIds)
-        : [task.id]
       await Promise.all(ids.map(id =>
         fetch(`${API_URL}/tasks/${id}`, {
           method: 'PATCH',
@@ -158,6 +162,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
         })
       ))
       onTasksUpdate()
+      if (isBulk) setSelectedIds(new Set())
     } catch (err) {
       // Ignore errors
     }
@@ -385,6 +390,7 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
         })
       )
       onTasksUpdate()
+      setSelectedIds(new Set())
     } catch {
       // Ignore errors
     }
@@ -708,9 +714,11 @@ function TaskList({ tasks, viewMode, selectedDate, todayStr, onViewModeChange, o
               <button type="button" className="reschedule-selected-btn" onClick={openReschedulePopup}>
                 Reschedule
               </button>
-              <button type="button" className="delete-selected-btn" onClick={handleDeleteSelected}>
-                <TrashIcon /> Delete
-              </button>
+              {selectedIds.size > 1 && (
+                <button type="button" className="delete-selected-btn" onClick={handleDeleteSelected}>
+                  <TrashIcon /> Delete
+                </button>
+              )}
             </div>
           )}
         </div>
