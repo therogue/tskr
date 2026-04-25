@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+from contextlib import nullcontext
 from typing import Optional, TypedDict
 
 import anthropic
@@ -20,6 +21,20 @@ from scheduling import build_schedule_context
 load_dotenv()
 _client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
+LANGFUSE_ENABLED = False
+_langfuse = None
+
+try:
+    if os.getenv("LANGFUSE_SECRET_KEY") and os.getenv("LANGFUSE_PUBLIC_KEY"):
+        from langfuse import Langfuse
+        _langfuse = Langfuse()
+        LANGFUSE_ENABLED = True
+        print("[graph] Langfuse enabled")
+    else:
+        print("[graph] Langfuse disabled — LANGFUSE_SECRET_KEY or LANGFUSE_PUBLIC_KEY not set")
+except Exception as e:
+    print(f"[graph] Langfuse disabled — init error: {type(e).__name__}: {e}")
+
 
 class GraphState(TypedDict):
     messages: list[dict]       # full conversation history in Anthropic API format
@@ -34,6 +49,7 @@ class GraphState(TypedDict):
     default_category: str      # user setting, e.g. "T"
     default_priority: str      # user setting, e.g. "medium"
     conflict_resolution: str   # user setting: "overlap" | "unschedule" | "backlog"
+    langfuse_trace_id: str     # set by classify_intent; empty string when Langfuse is disabled
 
 
 # ---------------------------------------------------------------------------
@@ -244,23 +260,42 @@ def _apply_operation(
 
 async def classify_intent(state: GraphState) -> dict:
     """LLM call: classify user intent into task_operation | clarification_answer | reschedule."""
+    trace_id = _langfuse.create_trace_id() if LANGFUSE_ENABLED else ""
     system = INTENT_PROMPT.format(today=state["today"])
     try:
-        response = await _client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=128,
-            system=system,
-            messages=state["messages"],
-        )
+        with (
+            _langfuse.start_as_current_observation(
+                trace_context={"trace_id": trace_id},
+                name="classify_intent",
+                as_type="generation",
+                model="claude-sonnet-4-5",
+                input=state["messages"],
+            )
+            if LANGFUSE_ENABLED
+            else nullcontext()
+        ):
+            response = await _client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=128,
+                system=system,
+                messages=state["messages"],
+            )
+            if LANGFUSE_ENABLED:
+                _langfuse.update_current_generation(
+                    output=response.content[0].text,
+                    usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
+                )
+        if LANGFUSE_ENABLED:
+            _langfuse.flush()
         parsed = json.loads(_strip_markdown(response.content[0].text))
         intent = parsed.get("intent", "task_operation")
         context = parsed.get("extracted_context", "")
         target_date = parsed.get("target_date") or ""
         print(f"[graph] classify_intent: intent={intent!r} context={context!r} target_date={target_date!r}")
-        return {"intent": intent, "extracted_context": context, "target_date": target_date}
+        return {"intent": intent, "extracted_context": context, "target_date": target_date, "langfuse_trace_id": trace_id}
     except Exception as e:
         print(f"[graph] classify_intent error: {e} — defaulting to task_operation")
-        return {"intent": "task_operation", "extracted_context": "", "target_date": ""}
+        return {"intent": "task_operation", "extracted_context": "", "target_date": "", "langfuse_trace_id": trace_id}
 
 
 def resolve_clarification(state: GraphState) -> dict:
@@ -319,6 +354,7 @@ async def execute_operation(state: GraphState) -> dict:
     today = state["today"]
     tasks = state["relevant_tasks"]
 
+    trace_id = state.get("langfuse_trace_id", "")
     target_date = state.get("target_date", "")
     system = SYSTEM_PROMPT.format(today=today)
 
@@ -347,13 +383,31 @@ async def execute_operation(state: GraphState) -> dict:
         system += schedule_context
 
     try:
-        response = await _client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=256,
-            system=system,
-            messages=state["messages"],
-        )
-        ai_text = response.content[0].text
+        with (
+            _langfuse.start_as_current_observation(
+                trace_context={"trace_id": trace_id},
+                name="execute_operation",
+                as_type="generation",
+                model="claude-sonnet-4-5",
+                input=state["messages"],
+            )
+            if LANGFUSE_ENABLED and trace_id
+            else nullcontext()
+        ):
+            response = await _client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=256,
+                system=system,
+                messages=state["messages"],
+            )
+            ai_text = response.content[0].text
+            if LANGFUSE_ENABLED and trace_id:
+                _langfuse.update_current_generation(
+                    output=ai_text,
+                    usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
+                )
+        if LANGFUSE_ENABLED and trace_id:
+            _langfuse.flush()
         print(f"[graph] execute_operation raw: {ai_text}")
         parsed = json.loads(_strip_markdown(ai_text))
     except json.JSONDecodeError:
@@ -374,6 +428,7 @@ async def execute_reschedule(state: GraphState) -> dict:
     today = state["today"]
     tasks = state["relevant_tasks"]
 
+    trace_id = state.get("langfuse_trace_id", "")
     task_list = (
         "\n".join(
             f"- {t['task_key']}: {t['title']} (scheduled: {t['scheduled_date'] or 'unscheduled'})"
@@ -390,13 +445,31 @@ async def execute_reschedule(state: GraphState) -> dict:
         system += f"\n\nThe user is referring to tasks on: {target_date}. Prefer matching tasks scheduled on this date."
 
     try:
-        response = await _client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=256,
-            system=system,
-            messages=state["messages"],
-        )
-        ai_text = response.content[0].text
+        with (
+            _langfuse.start_as_current_observation(
+                trace_context={"trace_id": trace_id},
+                name="execute_reschedule",
+                as_type="generation",
+                model="claude-sonnet-4-5",
+                input=state["messages"],
+            )
+            if LANGFUSE_ENABLED and trace_id
+            else nullcontext()
+        ):
+            response = await _client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=256,
+                system=system,
+                messages=state["messages"],
+            )
+            ai_text = response.content[0].text
+            if LANGFUSE_ENABLED and trace_id:
+                _langfuse.update_current_generation(
+                    output=ai_text,
+                    usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
+                )
+        if LANGFUSE_ENABLED and trace_id:
+            _langfuse.flush()
         print(f"[graph] execute_reschedule raw: {ai_text}")
         parsed = json.loads(_strip_markdown(ai_text))
     except json.JSONDecodeError:

@@ -16,6 +16,14 @@ Add your Anthropic API key to `.env`:
 ANTHROPIC_API_KEY=your-actual-key
 ```
 
+Optionally, add [Langfuse](https://cloud.langfuse.com) credentials to trace LLM calls (free account, no credit card):
+```
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+The app runs normally without these.
+
 Run:
 ```bash
 python main.py
