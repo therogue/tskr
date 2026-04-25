@@ -167,6 +167,12 @@ def _apply_operation(
     print(f"[graph] _apply_operation: op={operation} key={task_key!r} title={title!r} scheduled_date={scheduled_date!r}")
 
     if operation == "create" and title:
+        # Issue #45: enforce sensible defaults at the LLM-aware layer so new
+        # tasks never have null duration/priority. Updates keep null-as-noop.
+        if duration_minutes is None:
+            duration_minutes = 15
+        if priority is None:
+            priority = 2
         task_id = str(uuid.uuid4())
         effective_date = scheduled_date or (today if category in ("D", "M") else None)
         is_template = bool(recurrence_rule)
@@ -290,6 +296,9 @@ def _fetch_tasks_for_state(state: GraphState, label: str) -> list[dict]:
             "category": t.category,
             "scheduled_date": t.scheduled_date,
             "completed": t.completed,
+            "duration_minutes": t.duration_minutes,
+            "priority": t.priority,
+            "recurrence_rule": t.recurrence_rule,
         }
         for t in tasks
     ]

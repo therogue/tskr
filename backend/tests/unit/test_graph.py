@@ -342,6 +342,85 @@ class TestFetchTasksForState:
         assert result[0]["id"] == "id-1"
 
 
+class TestFetchTasksEnrichment:
+    """Issue #45: task list sent to LLM must include duration, priority, and recurrence."""
+
+    def test_includes_duration_minutes(self, test_db):
+        create_task_db("id-1", "task", "T", "2026-03-18", duration_minutes=45)
+        state = {"today": "2026-03-18", "target_date": "2026-03-18"}
+        result = _fetch_tasks_for_state(state, "test")
+        assert "duration_minutes" in result[0]
+        assert result[0]["duration_minutes"] == 45
+
+    def test_includes_priority(self, test_db):
+        create_task_db("id-1", "task", "T", "2026-03-18", priority=3)
+        state = {"today": "2026-03-18", "target_date": "2026-03-18"}
+        result = _fetch_tasks_for_state(state, "test")
+        assert "priority" in result[0]
+        assert result[0]["priority"] == 3
+
+    def test_includes_recurrence_rule(self, test_db):
+        create_task_db("id-1", "standup", "M", "2026-03-18", recurrence_rule="weekdays")
+        state = {"today": "2026-03-18", "target_date": "2026-03-18"}
+        result = _fetch_tasks_for_state(state, "test")
+        assert "recurrence_rule" in result[0]
+        assert result[0]["recurrence_rule"] == "weekdays"
+
+
+class TestApplyOperationCreateDefaults:
+    """Issue #45: create must always produce tasks with non-null duration and priority."""
+
+    def test_create_fills_null_duration_with_default(self, test_db):
+        """If LLM returns null duration_minutes, a sensible default is applied."""
+        parsed = {
+            "operation": "create",
+            "title": "vague task",
+            "category": "T",
+            "scheduled_date": "2026-03-18",
+            "duration_minutes": None,
+            "priority": 2,
+            "message": "Done",
+        }
+        _apply_operation(parsed, "2026-03-18", [])
+        tasks = get_all_tasks()
+        assert len(tasks) == 1
+        assert tasks[0].duration_minutes is not None, "duration_minutes should have a default"
+        assert tasks[0].duration_minutes > 0
+
+    def test_create_fills_null_priority_with_default(self, test_db):
+        """If LLM returns null priority, a sensible default is applied."""
+        parsed = {
+            "operation": "create",
+            "title": "vague task",
+            "category": "T",
+            "scheduled_date": "2026-03-18",
+            "duration_minutes": 30,
+            "priority": None,
+            "message": "Done",
+        }
+        _apply_operation(parsed, "2026-03-18", [])
+        tasks = get_all_tasks()
+        assert len(tasks) == 1
+        assert tasks[0].priority is not None, "priority should have a default"
+        assert 0 <= tasks[0].priority <= 4
+
+    def test_create_fills_both_when_both_null(self, test_db):
+        """Both fields default when the LLM omits both."""
+        parsed = {
+            "operation": "create",
+            "title": "bare minimum task",
+            "category": "T",
+            "scheduled_date": "2026-03-18",
+            "duration_minutes": None,
+            "priority": None,
+            "message": "Done",
+        }
+        _apply_operation(parsed, "2026-03-18", [])
+        tasks = get_all_tasks()
+        assert tasks[0].duration_minutes is not None
+        assert tasks[0].priority is not None
+
+
 class TestRouteIntent:
 
     def test_task_operation(self):
