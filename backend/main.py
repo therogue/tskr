@@ -15,6 +15,7 @@ from database import (
     init_db,
     get_all_tasks,
     get_tasks_for_date,
+    get_overdue_tasks,
     create_task_db,
     update_task_db,
     delete_task_db,
@@ -67,6 +68,13 @@ def get_tasks_for_date_endpoint(date: str) -> list[Task]:
     """Get tasks for a specific date (day view)."""
     today = datetime.now().strftime("%Y-%m-%d")
     return get_tasks_for_date(date, today)
+
+
+@app.get("/tasks/overdue")
+def get_overdue_tasks_endpoint() -> list[Task]:
+    """Get tasks with scheduled_date before today (incomplete, non-recurrent, non-meeting)."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    return get_overdue_tasks(today)
 
 
 @app.patch("/tasks/{task_id}")

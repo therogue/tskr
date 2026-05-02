@@ -95,3 +95,7 @@ Issue <N> - <short description> (#<PR>)
 ```
 
 Example: `Issue 46 - Add CONTRIBUTING.md (#47)`
+
+## Merging
+
+All PRs are merged by project maintainers after review.

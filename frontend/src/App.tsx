@@ -33,6 +33,7 @@ function formatDateStr(date: Date): string {
 
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [overdueTasks, setOverdueTasks] = useState<Task[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('day');
   const [showSettings, setShowSettings] = useState(false);
   const [quickEntryOpen, setQuickEntryOpen] = useState(false);
@@ -77,9 +78,20 @@ function App() {
         viewMode === "day"
           ? `${API_URL}/tasks/for-date?date=${selectedDate}`
           : `${API_URL}/tasks`;
-      const res = await fetch(url);
+      // Overdue is a separate query, only relevant when viewing today's day view.
+      const showOverdue = viewMode === "day" && selectedDate === todayStr;
+      const [res, overdueRes] = await Promise.all([
+        fetch(url),
+        showOverdue ? fetch(`${API_URL}/tasks/overdue`) : Promise.resolve(null),
+      ]);
       const data = await res.json();
       setTasks(data);
+      if (overdueRes) {
+        const overdueData = await overdueRes.json();
+        setOverdueTasks(overdueData);
+      } else {
+        setOverdueTasks([]);
+      }
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
     }
@@ -110,6 +122,7 @@ function App() {
       <main className="main">
         <TaskList
           tasks={tasks}
+          overdueTasks={overdueTasks}
           viewMode={viewMode}
           selectedDate={selectedDate}
           todayStr={todayStr}
