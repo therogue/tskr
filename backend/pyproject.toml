@@ -1,3 +1,30 @@
+[project]
+name = "hakadorio-backend"
+version = "0.1.0"
+description = "Hakadorio backend (FastAPI + LangGraph)"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "python-dotenv",
+    "anthropic",
+    "pydantic",
+    "alembic",
+    "sqlalchemy",
+    "sqlmodel",
+    "langgraph",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+]
+
+[tool.uv]
+package = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
