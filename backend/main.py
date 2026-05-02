@@ -8,7 +8,7 @@ import json
 import anthropic
 from dotenv import load_dotenv
 
-from models import Task, TaskUpdate, ChatRequest, UserSettingsRead, UserSettingsUpdate
+from models import Task, TaskUpdate, BulkMoveToBacklogRequest, ChatRequest, UserSettingsRead, UserSettingsUpdate
 from prompts import TITLE_PROMPT
 from graph import GraphState, chat_graph
 from database import (
@@ -67,6 +67,17 @@ def get_tasks_for_date_endpoint(date: str) -> list[Task]:
     """Get tasks for a specific date (day view)."""
     today = datetime.now().strftime("%Y-%m-%d")
     return get_tasks_for_date(date, today)
+
+
+@app.post("/tasks/bulk-move-to-backlog")
+def bulk_move_to_backlog(body: BulkMoveToBacklogRequest) -> list[Task]:
+    updated = []
+    for task_id in body.task_ids:
+        result = update_task_db(task_id, scheduled_date=None)
+        if not result:
+            raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+        updated.append(result)
+    return updated
 
 
 @app.patch("/tasks/{task_id}")
