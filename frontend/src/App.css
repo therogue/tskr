@@ -136,6 +136,37 @@ body {
   min-height: 0;
 }
 
+/* ─── v2 Layout (ux_v2=true) ─────────────────────────────────────────────── */
+.main--v2 {
+  display: flex;
+  flex-direction: row;
+  gap: 1px;
+  background: var(--border, #2a3f5f);
+  flex: 1;
+  min-height: 0;
+}
+
+.main--v2 .task-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.right-panel {
+  flex: 0 0 var(--right-panel-w, 340px);
+  width: var(--right-panel-w, 340px);
+  position: relative;
+  overflow: hidden;
+  background: var(--surface, #152238);
+  display: flex;
+  flex-direction: column;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Task List Panel */
 .task-panel {
   flex: 1;
@@ -235,6 +266,23 @@ body {
 .tab.active {
   color: #6b8cce;
   border-bottom-color: #6b8cce;
+}
+
+/* v2 tab bar — tighter, accent underline 2px */
+.tab-bar--v2 {
+  border-bottom: 1px solid var(--border, #2a3f5f);
+  background: var(--surface, #152238);
+}
+.tab-bar--v2 .tab {
+  font-size: 13px;
+  padding: 13px 14px;
+  color: var(--text-dim, #607080);
+}
+.tab-bar--v2 .tab:hover { color: var(--text-muted, #a0b0c0); }
+.tab-bar--v2 .tab.active {
+  color: var(--accent, #6b8cce);
+  border-bottom-color: var(--accent, #6b8cce);
+  border-bottom-width: 2px;
 }
 
 /* Tab Content */
@@ -496,6 +544,42 @@ body {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* v2 day-view-toggle and actions */
+.day-view-toggle--v2 {
+  flex-wrap: wrap;
+}
+.dbl-click-hint {
+  font-size: 11px;
+  color: var(--text-dim, #607080);
+  flex: 1;
+  text-align: right;
+  padding-right: 4px;
+}
+.day-view-actions--v2 .reschedule-selected-btn,
+.day-view-actions--v2 .delete-selected-btn {
+  border-radius: 12px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+}
+.day-view-actions--v2 .reschedule-selected-btn {
+  background: var(--accent-dim, rgba(107,140,206,0.13));
+  color: var(--accent, #6b8cce);
+}
+.day-view-actions--v2 .reschedule-selected-btn:hover {
+  background: var(--accent, #6b8cce);
+  color: #fff;
+}
+.day-view-actions--v2 .delete-selected-btn {
+  background: rgba(231, 76, 60, 0.12);
+  color: #e74c3c;
+}
+.day-view-actions--v2 .delete-selected-btn:hover {
+  background: #e74c3c;
+  color: #fff;
 }
 
 .reschedule-selected-btn {
