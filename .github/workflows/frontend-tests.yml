@@ -1,0 +1,53 @@
+name: Frontend Tests
+
+on:
+  push:
+    branches:
+      - main
+      - feat/86-ux-revamp
+      - chore/ux-v2-test-baseline
+  pull_request:
+    branches:
+      - main
+      - feat/86-ux-revamp
+
+jobs:
+  unit:
+    name: Unit / Component Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+      - name: Install dependencies
+        run: pnpm install
+      - name: Run unit tests
+        run: pnpm test:unit
+
+  e2e:
+    name: E2E Smoke Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+      - name: Install dependencies
+        run: pnpm install
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install chromium --with-deps
+      - name: Run E2E tests
+        run: pnpm test:e2e --project=chromium
