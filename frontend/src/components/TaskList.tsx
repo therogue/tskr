@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { computeColumnLayout, DEFAULT_DURATION, pxToSnappedMinutes, minutesToTimeStr } from '../utils/calendarLayout'
 import { formatTaskCreationDate } from '../utils/date'
+import { useFeatureFlag } from '../featureFlags'
 
 interface Task {
   id: string
@@ -111,6 +112,7 @@ const LABEL_WIDTH = 55 // px
 const RIGHT_PAD = 8   // px
 
 function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, onViewModeChange, onDateChange, onTasksUpdate }: TaskListProps) {
+  const uxV2 = useFeatureFlag('ux_v2')
   const [dayViewMode, setDayViewMode] = useState<DayViewMode>('list')
   const calendarRef = useRef<HTMLDivElement>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -704,7 +706,7 @@ function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, 
           )}
         </div>
         <h2 className="date-header">{formatDateHeader(selectedDate)}</h2>
-        <div className="day-view-toggle">
+        <div className={`day-view-toggle${uxV2 ? ' day-view-toggle--v2' : ''}`}>
           <div className="day-view-toggle-tabs">
             <button
               className={dayViewMode === 'list' ? 'active' : ''}
@@ -715,8 +717,11 @@ function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, 
               onClick={() => setDayViewMode('calendar')}
             >Calendar</button>
           </div>
+          {uxV2 && (
+            <span className="dbl-click-hint">Double-click a task to edit</span>
+          )}
           {selectedIds.size > 0 && (
-            <div className="day-view-actions">
+            <div className={`day-view-actions${uxV2 ? ' day-view-actions--v2' : ''}`}>
               <button type="button" className="reschedule-selected-btn" onClick={openReschedulePopup}>
                 Reschedule
               </button>
@@ -725,6 +730,7 @@ function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, 
                   <TrashIcon /> Delete
                 </button>
               )}
+              {/* Slot reserved for "Move to backlog" — tracked as Issue 5 */}
             </div>
           )}
         </div>
@@ -872,7 +878,7 @@ function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, 
 
   return (
     <div className="task-panel">
-      <div className="tab-bar">
+      <div className={`tab-bar${uxV2 ? ' tab-bar--v2' : ''}`}>
         <button
           className={`tab ${viewMode === 'day' ? 'active' : ''}`}
           onClick={() => onViewModeChange('day')}
