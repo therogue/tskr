@@ -1945,3 +1945,88 @@ body {
   overflow-y: auto;
   line-height: 1.4;
 }
+
+/* ─── TaskCard in chat (v2 — #92) ──────────────────────────────────────── */
+.task-card-bubble {
+  margin-top: 10px;
+  background: var(--surface, #152238);
+  border: 1px solid var(--border-strong, #3a4f6f);
+  border-radius: 8px;
+  padding: 10px 12px;
+  animation: fadeSlideUp 0.2s ease;
+}
+.task-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.task-card-key {
+  font-size: 10px;
+  font-family: 'Space Mono', monospace;
+  color: var(--text-dim, #607080);
+  background: var(--surface-2, #253545);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.task-card-priority {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 8px;
+  text-transform: uppercase;
+}
+.task-card-priority.priority-critical { background: rgba(231,76,60,0.15); color: #e74c3c; }
+.task-card-priority.priority-high     { background: rgba(230,126,34,0.15); color: #e67e22; }
+.task-card-priority.priority-medium   { background: rgba(241,196,15,0.15); color: #f1c40f; }
+.task-card-priority.priority-low      { background: rgba(39,174,96,0.15); color: #27ae60; }
+.task-card-priority.priority-none     { background: var(--surface-2, #253545); color: var(--text-dim, #607080); }
+.task-card-done {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--green, #27ae60);
+  background: var(--green-dim, rgba(39,174,96,0.12));
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+.task-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #e8e8e8);
+  margin-bottom: 5px;
+}
+.task-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.task-card-date, .task-card-dur {
+  font-size: 11px;
+  color: var(--text-dim, #607080);
+}
+.task-card-actions {
+  display: flex;
+  gap: 6px;
+}
+.task-card-btn {
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background 0.12s;
+}
+.task-card-btn--view {
+  background: var(--surface-2, #253545);
+  color: var(--text-muted, #a0b0c0);
+  border: 1px solid var(--border, #2a3f5f);
+}
+.task-card-btn--view:hover { background: var(--surface-hover, #1e3050); color: var(--text, #e8e8e8); }
+.task-card-btn--edit {
+  background: var(--accent-dim, rgba(107,140,206,0.13));
+  color: var(--accent, #6b8cce);
+  border: 1px solid var(--border, #2a3f5f);
+}
+.task-card-btn--edit:hover { background: var(--accent, #6b8cce); color: #fff; }

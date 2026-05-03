@@ -161,6 +161,7 @@ function App() {
             />
             <ChatInterface
               onTasksUpdate={handleTasksUpdate}
+              tasks={tasks}
               visible={chatOpen}
               onClose={() => setChatOpen(false)}
             />
