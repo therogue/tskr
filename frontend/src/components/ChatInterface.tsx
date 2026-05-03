@@ -1,12 +1,27 @@
 import { useState, useEffect, useRef } from 'react'
 import { useFeatureFlag } from '../featureFlags'
 import Icon from './Icon'
+import TaskCard from './TaskCard'
+import TaskModal from './TaskModal'
+
+interface Task {
+  id: string
+  task_key: string
+  category: string
+  title: string
+  completed: boolean
+  scheduled_date: string | null
+  duration_minutes: number | null
+  priority: number | null
+}
 
 // Props support both legacy (collapsed strip) and v2 (overlay slide-in) modes.
 // When ux_v2.chat_overlay=true: `visible` and `onClose` drive behavior.
 // When false: legacy `collapsed` and `onToggleCollapse` still work.
 interface ChatInterfaceProps {
   onTasksUpdate: () => void
+  // Current tasks snapshot from App — used for diff-based task card attachment (#92)
+  tasks?: Task[]
   // Legacy props
   collapsed?: boolean
   onToggleCollapse?: () => void
@@ -18,6 +33,8 @@ interface ChatInterfaceProps {
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  // Attached task when the AI action created or modified a task (#92)
+  task?: Task
 }
 
 interface ConversationSummary {
@@ -72,6 +89,7 @@ function HistoryDrawer({
 
 function ChatInterface({
   onTasksUpdate,
+  tasks: externalTasks = [],
   collapsed = false,
   onToggleCollapse = () => {},
   visible,
@@ -80,6 +98,7 @@ function ChatInterface({
   const uxV2 = useFeatureFlag('ux_v2')
   const chatOverlayFlag = useFeatureFlag('ux_v2.chat_overlay')
   const chatOverlay = uxV2 && chatOverlayFlag
+  const [editTask, setEditTask] = useState<Task | null>(null)
 
   const [messages, setMessages] = useState<Message[]>([])
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
@@ -176,9 +195,14 @@ function ChatInterface({
     if (!text.trim() || loading) return
     const userMessage = text.trim()
     setInput('')
-    const newMessages = [...messages, { role: 'user' as const, content: userMessage }]
+    const newMessages: Message[] = [...messages, { role: 'user' as const, content: userMessage }]
     setMessages(newMessages)
     setLoading(true)
+
+    // Snapshot before-send for diff-based task card attachment (#92).
+    const beforeIds = new Set(externalTasks.map(t => t.id))
+    const beforeById = new Map(externalTasks.map(t => [t.id, t]))
+
     try {
       const res = await fetch(`${API_URL}/chat`, {
         method: 'POST',
@@ -186,7 +210,23 @@ function ChatInterface({
         body: JSON.stringify({ messages: newMessages, conversation_id: activeConversationId }),
       })
       const data = await res.json()
-      setMessages([...newMessages, { role: 'assistant', content: data.response }])
+
+      // Diff to find the task most relevant to this AI response.
+      let attachedTask: Task | undefined
+      if (Array.isArray(data.tasks) && data.tasks.length > 0) {
+        const newTasks = (data.tasks as Task[]).filter(t => !beforeIds.has(t.id))
+        const changed = (data.tasks as Task[]).filter(t =>
+          beforeById.has(t.id) && JSON.stringify(beforeById.get(t.id)) !== JSON.stringify(t)
+        )
+        const affected = [...newTasks, ...changed]
+        if (affected.length > 0) {
+          attachedTask = affected.sort((a, b) =>
+            (b.scheduled_date ?? '').localeCompare(a.scheduled_date ?? '')
+          )[0]
+        }
+      }
+
+      setMessages([...newMessages, { role: 'assistant', content: data.response, task: attachedTask }])
       onTasksUpdate()
       if (data.title && activeConversationId !== null) {
         const applyTitle = (convs: ConversationSummary[]) =>
@@ -277,6 +317,13 @@ function ChatInterface({
           {messages.map((msg, i) => (
             <div key={i} className={`message ${msg.role}`}>
               {msg.content}
+              {msg.role === 'assistant' && msg.task && (
+                <TaskCard
+                  task={msg.task}
+                  onView={(t) => setEditTask(t)}
+                  onEdit={(t) => setEditTask(t)}
+                />
+              )}
             </div>
           ))}
           {loading && <div className="message assistant">Thinking...</div>}
@@ -297,6 +344,15 @@ function ChatInterface({
             <Icon n="send" size={16} />
           </button>
         </form>
+
+        {editTask && (
+          <TaskModal
+            task={editTask}
+            onClose={() => setEditTask(null)}
+            onSave={() => { setEditTask(null); onTasksUpdate() }}
+            onDelete={() => { setEditTask(null); onTasksUpdate() }}
+          />
+        )}
       </div>
     )
   }
