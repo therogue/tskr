@@ -44,11 +44,12 @@ function App() {
 
   const themeToggleEnabled = useFeatureFlag('ux_v2.theme_toggle')
   const [theme, toggleTheme] = useTheme()
-  
+
   const CHAT_COLLAPSED_KEY = 'chatCollapsed'
   const [chatCollapsed, setChatCollapsed] = useState<boolean>(() => {
     return localStorage.getItem(CHAT_COLLAPSED_KEY) === 'true'
   })
+  const [chatOpen, setChatOpen] = useState(false)
 
   function handleToggleChat() {
     setChatCollapsed(prev => {
@@ -156,9 +157,13 @@ function App() {
             <WidgetPanel
               tasks={tasks}
               selectedDate={selectedDate}
-              onOpenChat={() => {/* stub — wired in #89 */}}
+              onOpenChat={() => setChatOpen(true)}
             />
-            {/* ChatInterface slot — wired in #89 */}
+            <ChatInterface
+              onTasksUpdate={handleTasksUpdate}
+              visible={chatOpen}
+              onClose={() => setChatOpen(false)}
+            />
           </div>
         </main>
       ) : (
