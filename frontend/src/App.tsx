@@ -6,6 +6,7 @@ import QuickEntry from './components/QuickEntry'
 import { useFeatureFlag } from './featureFlags'
 import { useTheme } from './hooks/useTheme'
 import Icon from './components/Icon'
+import WidgetPanel from './components/WidgetPanel'
 
 // Assumption: Task matches backend Task model, with optional projected field
 interface Task {
@@ -152,7 +153,12 @@ function App() {
             onTasksUpdate={handleTasksUpdate}
           />
           <div className="right-panel">
-            {/* WidgetPanel and ChatInterface slots — populated in #88 and #89 */}
+            <WidgetPanel
+              tasks={tasks}
+              selectedDate={selectedDate}
+              onOpenChat={() => {/* stub — wired in #89 */}}
+            />
+            {/* ChatInterface slot — wired in #89 */}
           </div>
         </main>
       ) : (
