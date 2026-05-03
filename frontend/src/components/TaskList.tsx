@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { computeColumnLayout, DEFAULT_DURATION, pxToSnappedMinutes, minutesToTimeStr } from '../utils/calendarLayout'
 import { formatTaskCreationDate } from '../utils/date'
 import { useFeatureFlag } from '../featureFlags'
+import TaskModal from './TaskModal'
 
 interface Task {
   id: string
@@ -113,7 +114,10 @@ const RIGHT_PAD = 8   // px
 
 function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, onViewModeChange, onDateChange, onTasksUpdate }: TaskListProps) {
   const uxV2 = useFeatureFlag('ux_v2')
+  const taskModalEnabled = useFeatureFlag('ux_v2.task_modal')
   const [dayViewMode, setDayViewMode] = useState<DayViewMode>('list')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const clickTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const calendarRef = useRef<HTMLDivElement>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const lastClickedIndexRef = useRef<number | null>(null)
@@ -241,6 +245,28 @@ function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, 
         return new Set([task.id])
       })
       lastClickedIndexRef.current = indexInOrdered
+    }
+  }
+
+  // Double-click detection: single click → existing select/toggle; double click → open TaskModal.
+  // Only active when ux_v2=true AND ux_v2.task_modal=true.
+  function handleRowActivate(task: Task, indexInOrdered: number, e: React.MouseEvent) {
+    if (!uxV2 || !taskModalEnabled) {
+      handleSelectBoxClick(task, indexInOrdered, e)
+      return
+    }
+    if (clickTimers.current.has(task.id)) {
+      // Second click within 300ms → double-click: open modal
+      clearTimeout(clickTimers.current.get(task.id))
+      clickTimers.current.delete(task.id)
+      setSelectedTask(task)
+    } else {
+      // First click: set a timer; if no second click in 300ms, treat as single click
+      const timer = setTimeout(() => {
+        clickTimers.current.delete(task.id)
+        handleSelectBoxClick(task, indexInOrdered, e)
+      }, 300)
+      clickTimers.current.set(task.id, timer)
     }
   }
 
@@ -452,7 +478,7 @@ function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, 
         className={classes}
         title={`Created: ${formatTaskCreationDate(task.created_at)}`}
         onMouseDown={(e) => e.shiftKey && e.preventDefault()}
-        onClick={(e) => handleSelectBoxClick(task, indexInOrdered, e)}
+        onClick={(e) => handleRowActivate(task, indexInOrdered, e)}
       >
         <input
           type="checkbox"
@@ -956,6 +982,23 @@ function TaskList({ tasks, overdueTasks = [], viewMode, selectedDate, todayStr, 
         {viewMode === 'completed' && renderAllTasksView(true)}
         {viewMode === 'backlog' && renderBacklogView()}
       </div>
+
+      {selectedTask && (
+        <TaskModal
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onSave={(updated) => {
+            setSelectedTask(null)
+            onTasksUpdate()
+            // Suppress the stale "title" that triggered the double-click
+            void updated
+          }}
+          onDelete={(_id) => {
+            setSelectedTask(null)
+            onTasksUpdate()
+          }}
+        />
+      )}
     </div>
   )
 }
