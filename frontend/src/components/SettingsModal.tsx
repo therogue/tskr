@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import FeatureFlagPanel from './FeatureFlagPanel'
+import { isDebugMode } from '../featureFlags'
 
 const API_URL = 'http://localhost:8000'
 
@@ -166,6 +168,8 @@ export default function SettingsModal({ onClose, taskCategories }: SettingsModal
             </div>
           </section>
         </div>
+
+        {isDebugMode() && <FeatureFlagPanel />}
 
         <div className="settings-footer">
           <button className="settings-discard-btn" onClick={onClose}>Discard</button>

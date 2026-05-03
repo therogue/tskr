@@ -3,6 +3,10 @@ import TaskList from './components/TaskList'
 import ChatInterface from './components/ChatInterface'
 import SettingsModal from './components/SettingsModal'
 import QuickEntry from './components/QuickEntry'
+import { useFeatureFlag } from './featureFlags'
+import { useTheme } from './hooks/useTheme'
+import Icon from './components/Icon'
+import WidgetPanel from './components/WidgetPanel'
 
 // Assumption: Task matches backend Task model, with optional projected field
 interface Task {
@@ -37,11 +41,15 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('day');
   const [showSettings, setShowSettings] = useState(false);
   const [quickEntryOpen, setQuickEntryOpen] = useState(false);
-  
+
+  const themeToggleEnabled = useFeatureFlag('ux_v2.theme_toggle')
+  const [theme, toggleTheme] = useTheme()
+
   const CHAT_COLLAPSED_KEY = 'chatCollapsed'
   const [chatCollapsed, setChatCollapsed] = useState<boolean>(() => {
     return localStorage.getItem(CHAT_COLLAPSED_KEY) === 'true'
   })
+  const [chatOpen, setChatOpen] = useState(false)
 
   function handleToggleChat() {
     setChatCollapsed(prev => {
@@ -102,16 +110,30 @@ function App() {
     fetchTasks();
   }
 
+  const uxV2 = useFeatureFlag('ux_v2')
+  const headerActions = (
+    <>
+      {themeToggleEnabled && (
+        <button
+          className="header-theme-btn"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        >
+          <Icon n={theme === 'dark' ? 'sun' : 'moon'} size={20} />
+        </button>
+      )}
+      <button className="header-settings-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
+        <Icon n="settings" size={20} />
+      </button>
+    </>
+  )
+
   return (
-    <div className="app">
+    <div className={`app${uxV2 ? ' ux-v2' : ''}`}>
       <header className="header">
         <h1><img src="/hakadorio-logo.png" alt="hakadorio" className="header-logo" />Hakadorio</h1>
-        <button className="header-settings-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
+        <div className="header-actions">{headerActions}</div>
       </header>
       {showSettings && (
         <SettingsModal
@@ -119,19 +141,47 @@ function App() {
           taskCategories={[...new Set(tasks.map(t => t.category))]}
         />
       )}
-      <main className="main">
-        <TaskList
-          tasks={tasks}
-          overdueTasks={overdueTasks}
-          viewMode={viewMode}
-          selectedDate={selectedDate}
-          todayStr={todayStr}
-          onViewModeChange={setViewMode}
-          onDateChange={setSelectedDate}
-          onTasksUpdate={handleTasksUpdate}
-        />
-        <ChatInterface onTasksUpdate={handleTasksUpdate} collapsed={chatCollapsed} onToggleCollapse={handleToggleChat} />
-      </main>
+      {uxV2 ? (
+        <main className="main main--v2">
+          <TaskList
+            tasks={tasks}
+            overdueTasks={overdueTasks}
+            viewMode={viewMode}
+            selectedDate={selectedDate}
+            todayStr={todayStr}
+            onViewModeChange={setViewMode}
+            onDateChange={setSelectedDate}
+            onTasksUpdate={handleTasksUpdate}
+          />
+          <div className="right-panel">
+            <WidgetPanel
+              tasks={tasks}
+              selectedDate={selectedDate}
+              onOpenChat={() => setChatOpen(true)}
+            />
+            <ChatInterface
+              onTasksUpdate={handleTasksUpdate}
+              tasks={tasks}
+              visible={chatOpen}
+              onClose={() => setChatOpen(false)}
+            />
+          </div>
+        </main>
+      ) : (
+        <main className="main">
+          <TaskList
+            tasks={tasks}
+            overdueTasks={overdueTasks}
+            viewMode={viewMode}
+            selectedDate={selectedDate}
+            todayStr={todayStr}
+            onViewModeChange={setViewMode}
+            onDateChange={setSelectedDate}
+            onTasksUpdate={handleTasksUpdate}
+          />
+          <ChatInterface onTasksUpdate={handleTasksUpdate} collapsed={chatCollapsed} onToggleCollapse={handleToggleChat} />
+        </main>
+      )}
       {quickEntryOpen && (
         <QuickEntry
           onClose={() => setQuickEntryOpen(false)}
