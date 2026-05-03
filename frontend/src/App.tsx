@@ -3,6 +3,9 @@ import TaskList from './components/TaskList'
 import ChatInterface from './components/ChatInterface'
 import SettingsModal from './components/SettingsModal'
 import QuickEntry from './components/QuickEntry'
+import { useFeatureFlag } from './featureFlags'
+import { useTheme } from './hooks/useTheme'
+import Icon from './components/Icon'
 
 // Assumption: Task matches backend Task model, with optional projected field
 interface Task {
@@ -37,6 +40,9 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('day');
   const [showSettings, setShowSettings] = useState(false);
   const [quickEntryOpen, setQuickEntryOpen] = useState(false);
+
+  const themeToggleEnabled = useFeatureFlag('ux_v2.theme_toggle')
+  const [theme, toggleTheme] = useTheme()
   
   const CHAT_COLLAPSED_KEY = 'chatCollapsed'
   const [chatCollapsed, setChatCollapsed] = useState<boolean>(() => {
@@ -106,6 +112,16 @@ function App() {
     <div className="app">
       <header className="header">
         <h1><img src="/hakadorio-logo.png" alt="hakadorio" className="header-logo" />Hakadorio</h1>
+        {themeToggleEnabled && (
+          <button
+            className="header-theme-btn"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          >
+            <Icon n={theme === 'dark' ? 'sun' : 'moon'} size={20} />
+          </button>
+        )}
         <button className="header-settings-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3"/>

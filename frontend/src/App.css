@@ -1,3 +1,91 @@
+/* ─── CSS Custom Properties (Design Tokens) ──────────────────────────────── */
+/* Used by v2 components via var(--token). Legacy components continue to use
+   hard-coded hex values scoped under :root:not([data-ux-v2]).
+   When ux_v2=true the App sets data-ux-v2 on <html> and data-theme="dark". */
+
+:root {
+  /* Dark theme tokens (default) */
+  --bg: #0d1b2a;
+  --surface: #152238;
+  --surface-2: #253545;
+  --surface-hover: #1e3050;
+  --border: #2a3f5f;
+  --border-strong: #3a4f6f;
+  --text: #e8e8e8;
+  --text-muted: #a0b0c0;
+  --text-dim: #607080;
+  --accent: #6b8cce;
+  --accent-dim: rgba(107, 140, 206, 0.13);
+  --amber: #f1c40f;
+  --amber-dim: rgba(241, 196, 15, 0.15);
+  --green: #27ae60;
+  --green-dim: rgba(39, 174, 96, 0.15);
+  --user-bubble: #4a6fa5;
+  --ai-bubble: #253545;
+  --chat-bg: #1b2838;
+  --right-panel-w: 340px;
+}
+
+[data-theme="light"] {
+  --bg: #f0f4f9;
+  --surface: #ffffff;
+  --surface-2: #f0f4f9;
+  --surface-hover: #e2eaf5;
+  --border: #d0dcea;
+  --border-strong: #b8cce0;
+  --text: #1a2a3a;
+  --text-muted: #607080;
+  --text-dim: #a0b0c0;
+  --accent: #4a6fa5;
+  --accent-dim: rgba(74, 111, 165, 0.12);
+  --amber: #c8930a;
+  --amber-dim: rgba(200, 147, 10, 0.12);
+  --green: #1e8c4e;
+  --green-dim: rgba(30, 140, 78, 0.12);
+  --user-bubble: #d8e8f8;
+  --ai-bubble: #ffffff;
+  --chat-bg: #f5f8fc;
+}
+
+/* ─── Keyframes used by v2 components ──────────────────────────────────────── */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%            { transform: translateY(-5px); opacity: 1; }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0   rgba(74, 201, 148, 0.3); }
+  70%  { box-shadow: 0 0 0 8px rgba(74, 201, 148, 0); }
+  100% { box-shadow: 0 0 0 0   rgba(74, 201, 148, 0); }
+}
+
+/* ─── Feature flag panel (debug, dev only) ──────────────────────────────── */
+.feature-flag-panel {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border, #2a3f5f);
+  background: rgba(231, 76, 60, 0.07);
+}
+.feature-flag-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #e74c3c;
+  margin-bottom: 4px;
+}
+.feature-flag-panel-hint { font-size: 11px; color: var(--text-muted, #a0b0c0); margin-bottom: 10px; }
+.feature-flag-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.feature-flag-item {}
+.feature-flag-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.feature-flag-checkbox { width: 14px; height: 14px; cursor: pointer; }
+.feature-flag-id { font-size: 12px; font-family: 'Space Mono', monospace; color: var(--text, #e8e8e8); }
+
+/* ─── Reset / base ──────────────────────────────────────────────────────── */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -923,7 +1011,8 @@ body {
 }
 
 /* Header settings button */
-.header-settings-btn {
+.header-settings-btn,
+.header-theme-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -937,7 +1026,8 @@ body {
   flex-shrink: 0;
 }
 
-.header-settings-btn:hover {
+.header-settings-btn:hover,
+.header-theme-btn:hover {
   background: #253545;
   color: #e8e8e8;
   border-color: #6b8cce;
