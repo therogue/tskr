@@ -1671,3 +1671,165 @@ body {
   border: 1px solid #e74c3c;
 }
 .task-modal-btn--danger-ghost:hover { background: rgba(231, 76, 60, 0.12); }
+
+/* ─── WidgetPanel (v2 — #88) ──────────────────────────────────────────── */
+.widget-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px;
+  overflow-y: auto;
+  height: 100%;
+  background: var(--surface, #152238);
+}
+
+.widget-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+}
+.widget-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted, #a0b0c0);
+}
+.widget-ask-ai-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent, #6b8cce), #8b6bce);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: opacity 0.15s;
+}
+.widget-ask-ai-btn:hover { opacity: 0.85; }
+
+.widget-card {
+  background: var(--surface-2, #253545);
+  border: 1px solid var(--border, #2a3f5f);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.widget-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.widget-card-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted, #a0b0c0);
+}
+
+/* Progress widget */
+.widget-progress-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.widget-progress-info { display: flex; flex-direction: column; gap: 4px; }
+.widget-progress-count {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text, #e8e8e8);
+}
+.widget-progress-done { color: var(--accent, #6b8cce); }
+.widget-progress-sep, .widget-progress-total { color: var(--text-dim, #607080); font-size: 16px; }
+.widget-progress-label { font-size: 11px; color: var(--text-dim, #607080); margin-left: 2px; }
+.widget-progress-last { font-size: 11px; color: var(--text-dim, #607080); }
+.widget-progress-last span { color: var(--text-muted, #a0b0c0); }
+
+/* Next Up widget */
+.widget-next-up {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.widget-next-priority-bar {
+  width: 3px;
+  border-radius: 2px;
+  align-self: stretch;
+  min-height: 32px;
+}
+.widget-next-content { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.widget-next-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #e8e8e8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.widget-next-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.widget-next-time, .widget-next-duration {
+  font-size: 11px;
+  color: var(--text-dim, #607080);
+}
+.widget-next-badge {
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--accent-dim, rgba(107,140,206,0.13));
+  color: var(--accent, #6b8cce);
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+/* Weekly bars */
+.widget-week-diff {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+.widget-week-diff.positive { background: var(--green-dim); color: var(--green); }
+.widget-week-diff.negative { background: var(--amber-dim); color: var(--amber); }
+
+.widget-week-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 56px;
+  padding-top: 8px;
+}
+.widget-week-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.widget-week-bar {
+  width: 100%;
+  min-height: 2px;
+  background: var(--accent, #6b8cce);
+  border-radius: 3px 3px 0 0;
+  transition: height 0.3s ease;
+}
+.widget-week-day {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-dim, #607080);
+  text-transform: uppercase;
+}
+
+.widget-empty-text {
+  font-size: 12px;
+  color: var(--text-dim, #607080);
+  text-align: center;
+  padding: 8px 0;
+}
