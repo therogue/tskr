@@ -1945,3 +1945,65 @@ body {
   overflow-y: auto;
   line-height: 1.4;
 }
+
+/* ─── Suggestion chips & EmptyState (v2 — #90) ──────────────────────── */
+.chat-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 32px 20px;
+  text-align: center;
+  animation: fadeSlideUp 0.25s ease;
+}
+.chat-empty-icon {
+  color: var(--accent, #6b8cce);
+  margin-bottom: 12px;
+  opacity: 0.8;
+}
+.chat-empty-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text, #e8e8e8);
+  margin-bottom: 6px;
+}
+.chat-empty-sub {
+  font-size: 12px;
+  color: var(--text-dim, #607080);
+  margin-bottom: 16px;
+}
+
+.chat-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.chat-chip {
+  padding: 6px 12px;
+  background: var(--surface-2, #253545);
+  border: 1px solid var(--border, #2a3f5f);
+  border-radius: 14px;
+  color: var(--text-muted, #a0b0c0);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.chat-chip:hover {
+  background: var(--accent-dim, rgba(107,140,206,0.13));
+  color: var(--accent, #6b8cce);
+  border-color: var(--accent, #6b8cce);
+}
+
+.chat-chips-strip {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border, #2a3f5f);
+}
+.chat-chips-strip::-webkit-scrollbar { height: 0; }

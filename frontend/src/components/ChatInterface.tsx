@@ -33,6 +33,42 @@ interface HistoryPopup {
 
 const API_URL = 'http://localhost:8000'
 
+// Quick-prompt suggestions shown as chips in empty state and above input.
+// TODO: source from API in future iterations.
+const QUICK_PROMPTS = [
+  'What should I focus on today?',
+  'Add a task for tomorrow morning',
+  'Show me overdue tasks',
+  'Schedule my week',
+]
+
+function Chip({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="chat-chip" type="button" onClick={onClick}>
+      {label}
+    </button>
+  )
+}
+
+function EmptyState({ onChipClick }: { onChipClick: (prompt: string) => void }) {
+  return (
+    <div className="chat-empty-state">
+      <div className="chat-empty-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z" />
+        </svg>
+      </div>
+      <p className="chat-empty-title">Hi! What would you like to do?</p>
+      <p className="chat-empty-sub">Try one of these to get started:</p>
+      <div className="chat-chips-row">
+        {QUICK_PROMPTS.map(p => (
+          <Chip key={p} label={p} onClick={() => onChipClick(p)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function HistoryDrawer({
   conversations,
   activeId,
@@ -274,14 +310,29 @@ function ChatInterface({
         )}
 
         <div className="chat-messages">
-          {messages.map((msg, i) => (
-            <div key={i} className={`message ${msg.role}`}>
-              {msg.content}
-            </div>
-          ))}
-          {loading && <div className="message assistant">Thinking...</div>}
+          {messages.length === 0 && !loading ? (
+            <EmptyState onChipClick={(p) => sendMessage(p)} />
+          ) : (
+            <>
+              {messages.map((msg, i) => (
+                <div key={i} className={`message ${msg.role}`}>
+                  {msg.content}
+                </div>
+              ))}
+              {loading && <div className="message assistant">Thinking...</div>}
+            </>
+          )}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Persistent chip strip above input when there are messages and not loading */}
+        {messages.length > 0 && !loading && (
+          <div className="chat-chips-strip">
+            {QUICK_PROMPTS.map(p => (
+              <Chip key={p} label={p} onClick={() => sendMessage(p)} />
+            ))}
+          </div>
+        )}
 
         <form className="chat-input-form" onSubmit={handleSubmit}>
           <textarea
